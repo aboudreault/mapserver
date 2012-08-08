@@ -2523,9 +2523,14 @@ int msDrawLabelCache(imageObj *image, mapObj *map)
                 break;
               }
             }
-   
-            label_offset_x = labelPtr->offsetx*scalefactor;
-            label_offset_y = labelPtr->offsety*scalefactor;
+            /* apply offset and buffer settings */
+            if(labelPtr->anglemode != MS_FOLLOW) {
+               label_offset_x = labelPtr->offsetx*scalefactor;
+               label_offset_y = labelPtr->offsety*scalefactor;
+            } else {
+               label_offset_x = 0;
+               label_offset_y = 0;
+            } 
             label_buffer = MS_NINT(labelPtr->buffer*image->resolutionfactor);
             label_mindistance = MS_NINT(labelPtr->mindistance*image->resolutionfactor);
              
