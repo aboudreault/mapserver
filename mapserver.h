@@ -2743,17 +2743,17 @@ struct rendererVTableObj {
 	int (*cleanup)(void *renderer_data);
 } ;
 
+shapeObj *msOffsetCurve(shapeObj *p, double offset);
+#if defined HAVE_GEOS_OFFSET_CURVE
+shapeObj *msGEOSOffsetCurve(shapeObj *p, double offset);
+#endif
+
 #endif /* SWIG */
 
 #define MS_IMAGE_RENDERER(im) ((im)->format->vtable)
 #define MS_RENDERER_CACHE(renderer) ((renderer)->renderer_data)
 #define MS_IMAGE_RENDERER_CACHE(im) MS_RENDERER_CACHE(MS_IMAGE_RENDERER((im)))
 #define MS_MAP_RENDERER(map) ((map)->outputformat->vtable)
-
-shapeObj *msOffsetCurve(shapeObj *p, double offset);
-#if defined HAVE_GEOS_OFFSET_CURVE
-shapeObj *msGEOSOffsetCurve(shapeObj *p, double offset);
-#endif
 
 #ifdef __cplusplus
 }
