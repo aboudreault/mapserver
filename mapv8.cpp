@@ -1,7 +1,7 @@
 /**********************************************************************
  *
  * Project:  MapServer
- * Purpose:  V8 JavaScript Engine 
+ * Purpose:  V8 JavaScript Engine Support
  * Author:   Alan Boudreault (aboudreault@mapgears.com)
  *
  **********************************************************************
@@ -29,22 +29,76 @@
 #ifdef USE_V8
 
 #include "mapserver.h"
+#include <fstream>
+#include <streambuf>
 #include <v8.h>
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 
 using namespace v8;
 
-int test_v8() {
-  // Get the default Isolate created at startup.
+/* This function load a javascript file in memory (v8::String) */
+static Handle<String> readfile(const char *name)
+{
+  FILE* file = fopen(name, "rb");
+  if (file == NULL) return Handle<String>();
+
+  fseek(file, 0, SEEK_END);
+  int size = ftell(file);
+  rewind(file);
+
+  char* chars = new char[size + 1];
+  chars[size] = '\0';
+  for (int i = 0; i < size;) {
+    int read = static_cast<int>(fread(&chars[i], 1, size - i, file));
+    i += read;
+  }
+
+  fclose(file);
+  Handle<String> result = String::New(chars, size);
+  delete[] chars;
+  return result;
+}
+
+/* Function to load javascript dependencies */
+static Handle<Value> require(const Arguments& args)
+{
+  for (int i = 0; i < args.Length(); i++) {
+    String::Utf8Value str(args[i]);
+
+    Handle<String> source = readfile(*str);
+    if (source.IsEmpty())
+    {
+      return ThrowException(String::New("Error loading file"));
+    }
+
+    Handle<Script> script = Script::Compile(source);
+    return script->Run();    
+  }
+
+  return Undefined();
+}
+
+/* Create and return a v8 context. Thread safe. */
+static Handle<Context> v8_create_context(Isolate *isolate)
+{
+  Handle<ObjectTemplate> global = ObjectTemplate::New();
+
+  // We should  also write print, read load and quit handlers
+
+  global->Set(String::New("require"), FunctionTemplate::New(require));
+
+  return Context::New(isolate, NULL, global);
+}
+
+int test_v8()
+{
+  TryCatch try_catch;
+
   Isolate* isolate = Isolate::GetCurrent();
 
   // Create a stack-allocated handle scope.
   HandleScope handle_scope(isolate);
 
-  // Create a new context.
-  Handle<Context> context = Context::New(isolate);
+  Handle<Context> context = v8_create_context(isolate);
 
   // Here's how you could create a Persistent handle to the context, if needed.
   Persistent<Context> persistent_context(isolate, context);
@@ -54,20 +108,39 @@ int test_v8() {
   Context::Scope context_scope(context);
 
   // Create a string containing the JavaScript source code.
-  Handle<String> source = String::New("'Hello' + ', World!'");
+  //Handle<String> source = String::New("'Hello' + ', World!'");
+
+  Handle<String> source = readfile("/usr/src/mapserver/mapserver-master/test.js");
+  if (source.IsEmpty())
+  {
+    ThrowException(String::New("Error loading file"));
+    return MS_FAILURE;
+  }
 
   // Compile the source code.
   Handle<Script> script = Script::Compile(source);
   
   // Run the script to get the result.
   Handle<Value> result = script->Run();
-  
+  if (result.IsEmpty()) {
+    if (try_catch.HasCaught()) {
+      String::Utf8Value exception(try_catch.Exception());
+      const char* exception_string = "dddd";//*exception;
+       printf("--> %s\n", exception_string);
+      Handle<Message> message = try_catch.Message();
+      if (!message.IsEmpty()) {
+        printf("--> %s\n", exception_string);
+      }
+    }
+  } else if (!result->IsUndefined()) {
+    String::AsciiValue ascii(result);
+    printf("%s\n", *ascii);
+  }
+
+
   // The persistent handle needs to be eventually disposed.
   persistent_context.Dispose();
 
-  // Convert the result to an ASCII string and print it.
-  String::AsciiValue ascii(result);
-  printf("%s\n", *ascii);
   return 0;
 }
 
