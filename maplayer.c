@@ -629,7 +629,9 @@ int msLayerWhichItems(layerObj *layer, int get_all, char *metadata)
 
   if(layer->classitem) nt++;
   if(layer->filteritem) nt++;
-  if(layer->styleitem && strcasecmp(layer->styleitem, "AUTO") != 0) nt++;
+  if(layer->styleitem &&
+     strcasecmp(layer->styleitem, "AUTO") != 0 &&
+     strncasecmp(layer->styleitem, "javascript://", 13) != 0) nt++;
 
   if(layer->filter.type == MS_EXPRESSION)
     nt += msCountChars(layer->filter.string, '[');
@@ -701,7 +703,9 @@ int msLayerWhichItems(layerObj *layer, int get_all, char *metadata)
     /* layer items */
     if(layer->classitem) layer->classitemindex = string2list(layer->items, &(layer->numitems), layer->classitem);
     if(layer->filteritem) layer->filteritemindex = string2list(layer->items, &(layer->numitems), layer->filteritem);
-    if(layer->styleitem && strcasecmp(layer->styleitem, "AUTO") != 0) layer->styleitemindex = string2list(layer->items, &(layer->numitems), layer->styleitem);
+    if(layer->styleitem &&
+       (strcasecmp(layer->styleitem, "AUTO") != 0) &&
+       (strncasecmp(layer->styleitem, "javascript://",13) != 0)) layer->styleitemindex = string2list(layer->items, &(layer->numitems), layer->styleitem);
     if(layer->labelitem) layer->labelitemindex = string2list(layer->items, &(layer->numitems), layer->labelitem);
 
     /* layer classes */
@@ -873,6 +877,40 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
 
     return MS_SUCCESS;
   }
+  else if (strncasecmp(layer->styleitem,"javascript://",13) == 0) {
+#ifdef USE_V8
+    char path[MS_MAXPATHLEN];
+    char *filename = layer->styleitem+13;
+
+    if (*filename == '\0') {
+      msSetError(MS_MISCERR, "Invalid javascript filename: \"%s\".", "msLayerGetFeatureStyle()", layer->styleitem);
+      return MS_FAILURE;
+    }
+    
+    msBuildPath(path, map->mappath, filename);
+
+    stylestring = msV8ExecuteScript(path, shape);
+
+    /* reset style if stylestring contains style definitions */
+    resetClassStyle(c);
+    c->layer = layer;
+    if (msMaybeAllocateClassStyle(c, 0))
+      return(MS_FAILURE);
+    msUpdateStyleFromString(c->styles[0], stylestring, MS_FALSE);
+      if(c->styles[0]->symbolname) {
+        if((c->styles[0]->symbol =  msGetSymbolIndex(&(map->symbolset), c->styles[0]->symbolname, MS_TRUE)) == -1) {
+          msSetError(MS_MISCERR, "Undefined symbol \"%s\" in class of layer %s.", "msLayerGetFeatureStyle()",
+              c->styles[0]->symbolname, layer->name);
+          return MS_FAILURE;
+        }
+      }
+      free(stylestring);
+      return MS_SUCCESS;
+#else
+      msSetError(MS_MISCERR, "V8 Javascript support is not available.", "msLayerGetFeatureStyle()");  
+#endif
+  }
+  
   return MS_FAILURE;
 }
 

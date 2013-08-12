@@ -25,6 +25,7 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  **********************************************************************/
+
 #include "mapserver-config.h"
 #ifdef USE_V8
 
@@ -36,7 +37,7 @@
 using namespace v8;
 
 /* This function load a javascript file in memory (v8::String) */
-static Handle<String> readfile(const char *name)
+static Handle<String> msV8ReadFile(const char *name)
 {
   FILE* file = fopen(name, "rb");
   if (file == NULL) return Handle<String>();
@@ -64,7 +65,7 @@ static Handle<Value> require(const Arguments& args)
   for (int i = 0; i < args.Length(); i++) {
     String::Utf8Value str(args[i]);
 
-    Handle<String> source = readfile(*str);
+    Handle<String> source = msV8ReadFile(*str);
     if (source.IsEmpty())
     {
       return ThrowException(String::New("Error loading file"));
@@ -78,7 +79,7 @@ static Handle<Value> require(const Arguments& args)
 }
 
 /* Create and return a v8 context. Thread safe. */
-static Handle<Context> v8_create_context(Isolate *isolate)
+static Handle<Context> msV8CreateContext(Isolate *isolate)
 {
   Handle<ObjectTemplate> global = ObjectTemplate::New();
 
@@ -87,6 +88,42 @@ static Handle<Context> v8_create_context(Isolate *isolate)
   global->Set(String::New("require"), FunctionTemplate::New(require));
 
   return Context::New(isolate, NULL, global);
+}
+
+char* msV8ExecuteScript(const char *filename, shapeObj *shape)
+{
+  TryCatch try_catch;  
+  Isolate* isolate = Isolate::GetCurrent();
+  HandleScope handle_scope(isolate);
+
+  Handle<Context> context = msV8CreateContext(isolate);
+  Context::Scope context_scope(context);
+
+  Handle<String> source = msV8ReadFile(filename);
+  if (source.IsEmpty())
+  {
+    //ThrowException(String::New("Error loading file"));
+    return msStrdup("");
+  }
+
+  Handle<Script> script = Script::Compile(source);
+  
+  Handle<Value> result = script->Run();
+  if (result.IsEmpty()) {
+    if (try_catch.HasCaught()) {
+      String::Utf8Value exception(try_catch.Exception());
+      const char* exception_string = *exception;
+      Handle<Message> message = try_catch.Message();
+      if (!message.IsEmpty()) {
+        msSetError(MS_MISCERR, "Javascript Exception: \"%s\".", "msV8ExecuteScript()", exception_string);
+      }
+    }
+  } else if (!result.IsEmpty() && !result->IsUndefined()) {
+    String::AsciiValue ascii(result);
+    return msStrdup(*ascii);
+  }
+
+  return msStrdup("");
 }
 
 int test_v8()
@@ -98,7 +135,7 @@ int test_v8()
   // Create a stack-allocated handle scope.
   HandleScope handle_scope(isolate);
 
-  Handle<Context> context = v8_create_context(isolate);
+  Handle<Context> context = msV8CreateContext(isolate);
 
   // Here's how you could create a Persistent handle to the context, if needed.
   Persistent<Context> persistent_context(isolate, context);
@@ -110,7 +147,7 @@ int test_v8()
   // Create a string containing the JavaScript source code.
   //Handle<String> source = String::New("'Hello' + ', World!'");
 
-  Handle<String> source = readfile("/usr/src/mapserver/mapserver-master/test.js");
+  Handle<String> source = msV8ReadFile("/usr/src/mapserver/mapserver-master/test.js");
   if (source.IsEmpty())
   {
     ThrowException(String::New("Error loading file"));
@@ -125,7 +162,7 @@ int test_v8()
   if (result.IsEmpty()) {
     if (try_catch.HasCaught()) {
       String::Utf8Value exception(try_catch.Exception());
-      const char* exception_string = "dddd";//*exception;
+      const char* exception_string = *exception;
        printf("--> %s\n", exception_string);
       Handle<Message> message = try_catch.Message();
       if (!message.IsEmpty()) {

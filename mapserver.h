@@ -2712,6 +2712,7 @@ extern "C" {
   /* ==================================================================== */
 #ifdef USE_V8
   MS_DLL_EXPORT int test_v8();
+  MS_DLL_EXPORT char* msV8ExecuteScript(const char *filename, shapeObj *shape);  
 #endif
   /* ==================================================================== */
   /*      end of prototypes for functions in mapv8.cpp                    */
