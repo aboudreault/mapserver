@@ -130,7 +130,18 @@ char* msV8ExecuteScript(const char *filename, layerObj *layer, shapeObj *shape)
   }
 
   Handle<Script> script = Script::Compile(source);
-  
+  if (script.IsEmpty()) {
+    if (try_catch.HasCaught()) {
+      String::Utf8Value exception(try_catch.Exception());
+      const char* exception_string = *exception;
+      Handle<Message> message = try_catch.Message();
+      if (!message.IsEmpty()) {
+        msSetError(MS_MISCERR, "Javascript Exception: \"%s\".", "msV8ExecuteScript()", exception_string);
+      }
+    }
+    return msStrdup("");
+  }
+    
   Handle<Value> result = script->Run();
   if (result.IsEmpty()) {
     if (try_catch.HasCaught()) {
