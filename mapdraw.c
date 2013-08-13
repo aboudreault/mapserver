@@ -936,8 +936,13 @@ int msDrawVectorLayer(mapObj *map, layerObj *layer, imageObj *image)
   status = msLayerOpen(layer);
   if(status != MS_SUCCESS) return MS_FAILURE;
 
-  /* build item list */
-  status = msLayerWhichItems(layer, MS_FALSE, NULL);
+  /* build item list. STYLEITEM javascript needs the shape attributes */
+  if (layer->styleitem &&
+     (strncasecmp(layer->styleitem, "javascript://", 13) == 0)) {  
+    status = msLayerWhichItems(layer, MS_TRUE, NULL);
+  }
+  else 
+    status = msLayerWhichItems(layer, MS_FALSE, NULL);
 
   if(status != MS_SUCCESS) {
     msLayerClose(layer);

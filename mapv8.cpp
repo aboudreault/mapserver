@@ -78,30 +78,53 @@ static Handle<Value> require(const Arguments& args)
   return Undefined();
 }
 
-/* Create and return a v8 context. Thread safe. */
-static Handle<Context> msV8CreateContext(Isolate *isolate)
+/* Function alert: print to debug file */
+static Handle<Value> alert(const Arguments& args)
 {
-  Handle<ObjectTemplate> global = ObjectTemplate::New();
+  for (int i = 0; i < args.Length(); i++) {
+    String::Utf8Value str(args[i]);
+    msDebug("msV8ExecuteScript: %s\n", *str);
+  }
+
+  return Undefined();
+}
+
+/* Create and return a v8 context. Thread safe. */
+static Handle<Context> msV8CreateContext(Isolate *isolate, Handle<ObjectTemplate> global)
+{
+//Handle<ObjectTemplate> global = ObjectTemplate::New();
 
   // We should  also write print, read load and quit handlers
 
   global->Set(String::New("require"), FunctionTemplate::New(require));
+  global->Set(String::New("alert"), FunctionTemplate::New(alert));
 
   return Context::New(isolate, NULL, global);
 }
 
-char* msV8ExecuteScript(const char *filename, shapeObj *shape)
+char* msV8ExecuteScript(const char *filename, layerObj *layer, shapeObj *shape)
 {
   TryCatch try_catch;  
   Isolate* isolate = Isolate::GetCurrent();
   HandleScope handle_scope(isolate);
+  int i;
 
-  Handle<Context> context = msV8CreateContext(isolate);
+  Handle<ObjectTemplate> global = ObjectTemplate::New();
+  Handle<ObjectTemplate> shape_attributes = ObjectTemplate::New();
+  for (i=0; i<layer->numitems;++i) {
+    shape_attributes->Set(String::New(layer->items[i]),
+                          String::New(shape->values[i]));
+  }
+
+  global->Set(String::New("shape_attributes"), shape_attributes);
+
+  Handle<Context> context = msV8CreateContext(isolate, global);
   Context::Scope context_scope(context);
 
   Handle<String> source = msV8ReadFile(filename);
   if (source.IsEmpty())
   {
+    msDebug("msV8ExecuteScript(): Invalid or empty Javascript file: \"%s\".\n", filename);
     //ThrowException(String::New("Error loading file"));
     return msStrdup("");
   }
@@ -134,8 +157,8 @@ int test_v8()
 
   // Create a stack-allocated handle scope.
   HandleScope handle_scope(isolate);
-
-  Handle<Context> context = msV8CreateContext(isolate);
+  Handle<ObjectTemplate> global = ObjectTemplate::New();
+  Handle<Context> context = msV8CreateContext(isolate, global);
 
   // Here's how you could create a Persistent handle to the context, if needed.
   Persistent<Context> persistent_context(isolate, context);
