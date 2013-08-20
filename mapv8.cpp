@@ -36,7 +36,7 @@
 
 using namespace v8;
 
-/* This function load a javascript file in memory (v8::String) */
+/* This function load a javascript file in memory for its execution */
 static Handle<String> msV8ReadFile(const char *name)
 {
   FILE* file = fopen(name, "rb");
@@ -59,7 +59,7 @@ static Handle<String> msV8ReadFile(const char *name)
   return result;
 }
 
-/* Function to load javascript dependencies */
+/* JavaScript Function to load javascript dependencies */
 static Handle<Value> require(const Arguments& args)
 {
   for (int i = 0; i < args.Length(); i++) {
