@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
   int iterations = 1;
   int draws = 0;
 
-  test_v8();
+  //  test_v8();
   for(i=1; i<argc; i++) {
     if (strcmp(argv[i],"-c") == 0) { /* user specified number of draws */
       iterations = atoi(argv[i+1]);
