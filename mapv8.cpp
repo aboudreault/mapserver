@@ -51,14 +51,11 @@ using v8::TryCatch;
 using v8::Message;
 using v8::ThrowException;
 
-
-
-/* should be in mapv8.h or mapserver.h */
 typedef struct ms_v8_context {
   Isolate* isolate;
   Persistent<Context> context;
 } ms_v8_context;
-   
+
 /* INTERNAL JAVASCRIPT FUNCTIONS */
 
 /* Get c char from a v8 string. Caller has to free the returned value. */
@@ -196,82 +193,75 @@ static Handle<Value> msV8Print(const Arguments& args)
 /* END OF JAVASCRIPT EXPOSED FUNCTIONS */
 
 /* Create and return a v8 context. Thread safe. */
-static ms_v8_context* msV8CreateContext()
+ms_v8_context* msV8CreateContext()
 {
   ms_v8_context *context = (ms_v8_context*)msSmallMalloc(sizeof(ms_v8_context));
                                                         
   context->isolate = Isolate::GetCurrent();
   HandleScope handle_scope(context->isolate);
-  Handle<Context> v8_context = Context::New(context->isolate);
-  Persistent<Context> persistent_context(context->isolate, v8_context);
+
+  Handle<ObjectTemplate> global = ObjectTemplate::New();
+  global->Set(String::New("require"), FunctionTemplate::New(msV8Require));
+  global->Set(String::New("print"), FunctionTemplate::New(msV8Print));
+  global->Set(String::New("alert"), FunctionTemplate::New(msV8Print));
+
+  Handle<Context> v8_context = Context::New(context->isolate, NULL, global);
   context->context.Reset(context->isolate, v8_context);
 
-  Context::Scope context_scope(v8_context);
-
-  // Handle<ObjectTemplate> global = ObjectTemplate::New();
-  
-  // global->Set(String::New("require"), FunctionTemplate::New(msV8Require));
-  // global->Set(String::New("print"), FunctionTemplate::New(msV8Print));
-  // global->Set(String::New("alert"), FunctionTemplate::New(msV8Print));
-
-  //Context::Scope context_scope(context);
-  //context->context.Dispose();
-  persistent_context.Dispose();
   return context;
 }
 
-static void msV8DestroyContext(ms_v8_context* mscontext)
+void msV8FreeContext(ms_v8_context* context)
 {
-  mscontext->context.Dispose();
+  context->context.Dispose();
+  free(context);
 }
 
-char* msV8ExecuteScript(const char *filename, layerObj *layer, shapeObj *shape)
+char* msV8ExecuteScript(ms_v8_context * mscontext, const char *filename, layerObj *layer, shapeObj *shape)
 {
-  ms_v8_context *mscontext = msV8CreateContext();
-  //HandleScope handle_scope(mscontext->isolate);
+  int i;
+  HandleScope handle_scope(mscontext->isolate);
 
-  // Local<Context> context = Local<Context>::New(mscontext->isolate, mscontext->context);
-  
-  // Context::Scope context_scope(context);
-  
-  // Handle<Object> global = context->Global();
-  
-  // Handle<ObjectTemplate> shape_attributes = ObjectTemplate::New();
-  // for (i=0; i<layer->numitems; ++i) {
-  //   shape_attributes->Set(String::New(layer->items[i]),
-  //       		  String::New(shape->values[i]));
-  // }
+  Local<Context> context = Local<Context>::New(mscontext->isolate, mscontext->context);
 
-  // global->Set(String::New("shape_attributes"), shape_attributes);
+  Context::Scope context_scope(context);  
+  Handle<Object> global = context->Global();
 
-  // TryCatch try_catch;
-  // Handle<Value> source = msV8ReadFile(filename);
-  // if (source.IsEmpty()) {
-  //   msDebug("msV8ExecuteScript(): Invalid or empty Javascript file: \"%s\".\n", filename);
-  //   //ThrowException(String::New("Error loading file"));
-  //   return msStrdup("");
-  // }
+  Handle<ObjectTemplate> shape_attributes = ObjectTemplate::New();
+  for (i=0; i<layer->numitems; ++i) {
+    shape_attributes->Set(String::New(layer->items[i]),
+        		  String::New(shape->values[i]));
+  }
 
-  // Handle<String> script_name = String::New(msStripPath((char*)filename));
-  // Handle<Script> script = Script::Compile(source->ToString(), script_name);
-  // if (script.IsEmpty()) {
-  //   if (try_catch.HasCaught()) {
-  //     msV8ReportException(&try_catch);
-  //   }
-  //   return msStrdup("");
-  // }
+  global->Set(String::New("shape_attributes"), shape_attributes->NewInstance());
 
-  // Handle<Value> result = script->Run();
-  // if (result.IsEmpty()) {
-  //   if (try_catch.HasCaught()) {
-  //     msV8ReportException(&try_catch);
-  //   }
-  // } else if (!result.IsEmpty() && !result->IsUndefined()) {
-  //   String::AsciiValue ascii(result);
-  //   return msStrdup(*ascii);
-  // }
-  
-  //msV8DestroyContext(mscontext);
+  TryCatch try_catch;
+  Handle<Value> source = msV8ReadFile(filename);
+  if (source.IsEmpty()) {
+    msDebug("msV8ExecuteScript(): Invalid or empty Javascript file: \"%s\".\n", filename);
+    //ThrowException(String::New("Error loading file"));
+    return msStrdup("");
+  }
+
+  Handle<String> script_name = String::New(msStripPath((char*)filename));
+  Handle<Script> script = Script::Compile(source->ToString(), script_name);
+  if (script.IsEmpty()) {
+    if (try_catch.HasCaught()) {
+      msV8ReportException(&try_catch);
+    }
+    return msStrdup("");
+  }
+
+  Handle<Value> result = script->Run();
+  if (result.IsEmpty()) {
+    if (try_catch.HasCaught()) {
+      msV8ReportException(&try_catch);
+    }
+  } else if (!result.IsEmpty() && !result->IsUndefined()) {
+    String::AsciiValue ascii(result);
+    return msStrdup(*ascii);
+  }
+
   return msStrdup("");
 }
 

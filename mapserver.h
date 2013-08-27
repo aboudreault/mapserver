@@ -123,6 +123,9 @@ typedef ms_uint32 *     ms_bitarray;
 #include <gd.h>
 #endif
 
+#ifdef USE_V8
+typedef struct ms_v8_context ms_v8_context;
+#endif
 
 #include <sys/types.h> /* regular expression support */
 
@@ -1644,6 +1647,7 @@ extern "C" {
 #endif    
   };
 
+
   /************************************************************************/
   /*                                mapObj                                */
   /*                                                                      */
@@ -1757,6 +1761,10 @@ extern "C" {
     unsigned char encryption_key[MS_ENCRYPTION_KEY_SIZE]; /* 128bits encryption key */
 
     queryObj query;
+#endif
+
+#ifdef USE_V8
+    ms_v8_context* v8_context;
 #endif
   };
 
@@ -2711,8 +2719,10 @@ extern "C" {
   /*      prototypes for functions in mapv8.cpp                           */
   /* ==================================================================== */
 #ifdef USE_V8
-  MS_DLL_EXPORT int test_v8();
-  MS_DLL_EXPORT char* msV8ExecuteScript(const char *filename, layerObj *layer, shapeObj *shape);  
+  MS_DLL_EXPORT char* msV8ExecuteScript(ms_v8_context * context, const char *filename,
+                                        layerObj *layer, shapeObj *shape);
+  MS_DLL_EXPORT ms_v8_context* msV8CreateContext();
+  MS_DLL_EXPORT void msV8FreeContext(ms_v8_context* mscontext);
 #endif
   /* ==================================================================== */
   /*      end of prototypes for functions in mapv8.cpp                    */

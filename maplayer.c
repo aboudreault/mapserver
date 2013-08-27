@@ -882,6 +882,10 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
     char path[MS_MAXPATHLEN];
     char *filename = layer->styleitem+13;
 
+    if (!map->v8_context) {
+      map->v8_context = msV8CreateContext();
+    }
+
     if (*filename == '\0') {
       msSetError(MS_MISCERR, "Invalid javascript filename: \"%s\".", "msLayerGetFeatureStyle()", layer->styleitem);
       return MS_FAILURE;
@@ -889,7 +893,7 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
     
     msBuildPath(path, map->mappath, filename);
 
-    stylestring = msV8ExecuteScript(path, layer, shape);
+    stylestring = msV8ExecuteScript(map->v8_context, path, layer, shape);
     
     /* try to find out the current style format */
     if (strncasecmp(stylestring,"style",5) == 0) {
