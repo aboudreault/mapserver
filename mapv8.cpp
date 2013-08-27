@@ -33,18 +33,53 @@
 #include <streambuf>
 #include <v8.h>
 
-using namespace v8;
+using v8::Isolate;
+using v8::Context;
+using v8::Persistent;
+using v8::HandleScope;
+using v8::Handle;
+using v8::Script;
+using v8::Local;
+using v8::Object;
+using v8::Value;
+using v8::String;
+using v8::Undefined;
+using v8::FunctionTemplate;
+using v8::ObjectTemplate;
+using v8::Arguments;
+using v8::TryCatch;
+using v8::Message;
+using v8::ThrowException;
 
+
+
+/* should be in mapv8.h or mapserver.h */
+typedef struct ms_v8_context {
+  Isolate* isolate;
+  Persistent<Context> context;
+} ms_v8_context;
+   
 /* INTERNAL JAVASCRIPT FUNCTIONS */
 
-/* This function load a javascript file in memory for its execution.
-   Not exposed to JavaScript, used internally.
- */
+/* Get c char from a v8 string. Caller has to free the returned value. */
+static char *msV8GetCString(Local<Value> value, const char *fallback = "") {
+  if (value->IsString()) {
+    String::AsciiValue string(value);
+    char *str = (char *) malloc(string.length() + 1);
+    strcpy(str, *string);
+    return str;
+  }
+  char *str = (char *) malloc(strlen(fallback) + 1);
+  strcpy(str, fallback);
+  return str;
+}
+
+/* This function load a javascript file in memory for its execution. */
 static Handle<Value> msV8ReadFile(const char *name)
 {
   FILE* file = fopen(name, "rb");
   if (file == NULL) {
-    return ThrowException(v8::String::New("Error loading file"));
+    return ThrowException(String::New("Error loading file"));
   }
 
   fseek(file, 0, SEEK_END);
@@ -67,45 +102,55 @@ static Handle<Value> msV8ReadFile(const char *name)
 /* Handler for Javascript Exceptions. Not exposed to JavaScript, used internally.
    Most of the code from v8 shell example.
 */
-void msV8ReportException(v8::TryCatch* try_catch) {
-  v8::HandleScope handle_scope;
-  v8::String::Utf8Value exception(try_catch->Exception());
+void msV8ReportException(TryCatch* try_catch, const char *msg = "") {
+  HandleScope handle_scope;
+
+  if (!try_catch || !try_catch->HasCaught()) {
+    msSetError(MS_V8ERR, "Error: %s.", "msV8ReportException()", msg);
+    return;
+  }
+
+  String::Utf8Value exception(try_catch->Exception());
   const char* exception_string = *exception;
-  v8::Handle<v8::Message> message = try_catch->Message();
+  Handle<Message> message = try_catch->Message();
   if (message.IsEmpty()) {
-    msSetError(MS_MISCERR, "Javascript Exception: %s.", "msV8ReportException()",
-               exception_string);    
+    msSetError(MS_V8ERR, "Javascript Exception: %s.", "msV8ReportException()",
+	       exception_string);
   } else {
-    // Print (filename):(line number): (message).
-    v8::String::Utf8Value filename(message->GetScriptResourceName());
+    String::Utf8Value filename(message->GetScriptResourceName());
     const char* filename_string = *filename;
     int linenum = message->GetLineNumber();
-    msSetError(MS_MISCERR, "Javascript Exception: %s:%i: %s\n", "msV8ReportException()",
-               filename_string, linenum, exception_string);    
-    v8::String::Utf8Value sourceline(message->GetSourceLine());
+    msSetError(MS_V8ERR, "Javascript Exception: %s:%i: %s", "msV8ReportException()",
+	       filename_string, linenum, exception_string);
+    String::Utf8Value sourceline(message->GetSourceLine());
     const char* sourceline_string = *sourceline;
-    msSetError(MS_MISCERR, "Javascript Exception: %s\n", "msV8ReportException()",
-               sourceline_string);    
-    // Print wavy underline (GetUnderline is deprecated).
-    // int start = message->GetStartColumn();
-    // for (int i = 0; i < start; i++) {
-    // msSetError(MS_MISCERR, "Javascript Exception: " "", "msV8ReportException()",
-    //            filename_string, linenum, exception_string);          
-    //   printf(" ");
-    // }
-    // int end = message->GetEndColumn();
-    // for (int i = start; i < end; i++) {
-    //   printf("^");
-    // }
-    // printf("\n");
-    v8::String::Utf8Value stack_trace(try_catch->StackTrace());
+    msSetError(MS_V8ERR, "Javascript Exception: %s", "msV8ReportException()",
+	       sourceline_string);
+    String::Utf8Value stack_trace(try_catch->StackTrace());
     if (stack_trace.length() > 0) {
       const char* stack_trace_string = *stack_trace;
-      msSetError(MS_MISCERR, "Javascript Exception: %s\n", "msV8ReportException()",
-                 stack_trace_string);    
+      msSetError(MS_V8ERR, "Javascript Exception: %s", "msV8ReportException()",
+		 stack_trace_string);
     }
   }
-}  
+}
+
+/* Returns a compiled javascript script. */
+static Handle<Script> msV8CompileScript(Handle<String> source, Handle<String> script_name)
+{
+  if (source.IsEmpty() || source->Length() == 0) {
+    ThrowException(String::New("No source to compile"));
+    return Handle<Script>();
+  }
+
+  Handle<Script> script = Script::Compile(source, script_name);
+  if (script.IsEmpty()) {
+    return Handle<Script>();
+  }
+
+  return script;
+}
+
 /* END OF INTERNAL JAVASCRIPT FUNCTIONS */
 
 /* JAVASCRIPT EXPOSED FUNCTIONS */
@@ -118,10 +163,18 @@ static Handle<Value> msV8Require(const Arguments& args)
     String::Utf8Value str(args[i]);
 
     Handle<Value> source = msV8ReadFile(*str);
-    if (!source.IsEmpty() && !source->IsUndefined()) {
-      Handle<String> source_str = source->ToString();
-      Handle<Script> script = Script::Compile(source_str);
-      script->Run();
+    Handle<String> script_name = String::New(msStripPath(*str));
+    TryCatch try_catch;
+    Handle<Script> script = msV8CompileScript(source->ToString(), script_name);
+    if (script.IsEmpty()) {
+        return try_catch.HasCaught() ? try_catch.ReThrow():
+          ThrowException(String::New("Error compiling script"));
+    }
+    
+    Handle<Value> result = script->Run();
+    if (result.IsEmpty()) {
+      return try_catch.HasCaught() ? try_catch.ReThrow():
+        ThrowException(String::New("Error executing script"));
     }
   }
 
@@ -142,125 +195,84 @@ static Handle<Value> msV8Print(const Arguments& args)
 
 /* END OF JAVASCRIPT EXPOSED FUNCTIONS */
 
-
 /* Create and return a v8 context. Thread safe. */
-static Handle<Context> msV8CreateContext(Isolate *isolate, Handle<ObjectTemplate> global)
+static ms_v8_context* msV8CreateContext()
 {
-//Handle<ObjectTemplate> global = ObjectTemplate::New();
+  ms_v8_context *context = (ms_v8_context*)msSmallMalloc(sizeof(ms_v8_context));
+                                                        
+  context->isolate = Isolate::GetCurrent();
+  HandleScope handle_scope(context->isolate);
+  Handle<Context> v8_context = Context::New(context->isolate);
+  Persistent<Context> persistent_context(context->isolate, v8_context);
+  context->context.Reset(context->isolate, v8_context);
 
-  // We should  also write print, read load and quit handlers
+  Context::Scope context_scope(v8_context);
 
-  global->Set(String::New("require"), FunctionTemplate::New(msV8Require));
-  global->Set(String::New("print"), FunctionTemplate::New(msV8Print));
-  global->Set(String::New("alert"), FunctionTemplate::New(msV8Print));  
+  // Handle<ObjectTemplate> global = ObjectTemplate::New();
+  
+  // global->Set(String::New("require"), FunctionTemplate::New(msV8Require));
+  // global->Set(String::New("print"), FunctionTemplate::New(msV8Print));
+  // global->Set(String::New("alert"), FunctionTemplate::New(msV8Print));
 
-  return Context::New(isolate, NULL, global);
+  //Context::Scope context_scope(context);
+  //context->context.Dispose();
+  persistent_context.Dispose();
+  return context;
+}
+
+static void msV8DestroyContext(ms_v8_context* mscontext)
+{
+  mscontext->context.Dispose();
 }
 
 char* msV8ExecuteScript(const char *filename, layerObj *layer, shapeObj *shape)
 {
-  TryCatch try_catch;
-  Isolate* isolate = Isolate::GetCurrent();
-  HandleScope handle_scope(isolate);
-  int i;
+  ms_v8_context *mscontext = msV8CreateContext();
+  //HandleScope handle_scope(mscontext->isolate);
 
-  Handle<ObjectTemplate> global = ObjectTemplate::New();
-  Handle<ObjectTemplate> shape_attributes = ObjectTemplate::New();
-  for (i=0; i<layer->numitems; ++i) {
-    shape_attributes->Set(String::New(layer->items[i]),
-                          String::New(shape->values[i]));
-  }
+  // Local<Context> context = Local<Context>::New(mscontext->isolate, mscontext->context);
+  
+  // Context::Scope context_scope(context);
+  
+  // Handle<Object> global = context->Global();
+  
+  // Handle<ObjectTemplate> shape_attributes = ObjectTemplate::New();
+  // for (i=0; i<layer->numitems; ++i) {
+  //   shape_attributes->Set(String::New(layer->items[i]),
+  //       		  String::New(shape->values[i]));
+  // }
 
-  global->Set(String::New("shape_attributes"), shape_attributes);
+  // global->Set(String::New("shape_attributes"), shape_attributes);
 
-  Handle<Context> context = msV8CreateContext(isolate, global);
-  Context::Scope context_scope(context);
+  // TryCatch try_catch;
+  // Handle<Value> source = msV8ReadFile(filename);
+  // if (source.IsEmpty()) {
+  //   msDebug("msV8ExecuteScript(): Invalid or empty Javascript file: \"%s\".\n", filename);
+  //   //ThrowException(String::New("Error loading file"));
+  //   return msStrdup("");
+  // }
 
-  Handle<Value> source = msV8ReadFile(filename);
-  if (source.IsEmpty()) {
-    msDebug("msV8ExecuteScript(): Invalid or empty Javascript file: \"%s\".\n", filename);
-    //ThrowException(String::New("Error loading file"));
-    return msStrdup("");
-  }
+  // Handle<String> script_name = String::New(msStripPath((char*)filename));
+  // Handle<Script> script = Script::Compile(source->ToString(), script_name);
+  // if (script.IsEmpty()) {
+  //   if (try_catch.HasCaught()) {
+  //     msV8ReportException(&try_catch);
+  //   }
+  //   return msStrdup("");
+  // }
 
-  Handle<Script> script = Script::Compile(source->ToString());
-  if (script.IsEmpty()) {
-    if (try_catch.HasCaught()) {
-      msV8ReportException(&try_catch);
-    }
-    return msStrdup("");
-  }
-
-  Handle<Value> result = script->Run();
-  if (result.IsEmpty()) {
-    if (try_catch.HasCaught()) {
-      String::Utf8Value exception(try_catch.Exception());
-      const char* exception_string = *exception;
-      Handle<Message> message = try_catch.Message();
-      if (!message.IsEmpty()) {
-        msSetError(MS_MISCERR, "Javascript Exception: \"%s\".", "msV8ExecuteScript()", exception_string);
-      }
-    }
-  } else if (!result.IsEmpty() && !result->IsUndefined()) {
-    String::AsciiValue ascii(result);
-    return msStrdup(*ascii);
-  }
-
+  // Handle<Value> result = script->Run();
+  // if (result.IsEmpty()) {
+  //   if (try_catch.HasCaught()) {
+  //     msV8ReportException(&try_catch);
+  //   }
+  // } else if (!result.IsEmpty() && !result->IsUndefined()) {
+  //   String::AsciiValue ascii(result);
+  //   return msStrdup(*ascii);
+  // }
+  
+  //msV8DestroyContext(mscontext);
   return msStrdup("");
-}
-
-int test_v8()
-{
-  TryCatch try_catch;
-
-  Isolate* isolate = Isolate::GetCurrent();
-
-  // Create a stack-allocated handle scope.
-  HandleScope handle_scope(isolate);
-  Handle<ObjectTemplate> global = ObjectTemplate::New();
-  Handle<Context> context = msV8CreateContext(isolate, global);
-
-  // Here's how you could create a Persistent handle to the context, if needed.
-  Persistent<Context> persistent_context(isolate, context);
-
-  // Enter the created context for compiling and
-  // running the hello world script.
-  Context::Scope context_scope(context);
-
-  // Create a string containing the JavaScript source code.
-  //Handle<String> source = String::New("'Hello' + ', World!'");
-
-  Handle<Value> source = msV8ReadFile("/usr/src/mapserver/mapserver-master/test2.js");
-  if (source->IsUndefined() || source.IsEmpty()) {
-    ThrowException(String::New("Error loading file"));
-    return MS_FAILURE;
-  }
-
-  // Compile the source code.
-  Handle<Script> script = Script::Compile(source->ToString());
-
-  // Run the script to get the result.
-  Handle<Value> result = script->Run();
-  if (result.IsEmpty()) {
-    if (try_catch.HasCaught()) {
-      String::Utf8Value exception(try_catch.Exception());
-      const char* exception_string = *exception;
-      printf("--> %s\n", exception_string);
-      Handle<Message> message = try_catch.Message();
-      if (!message.IsEmpty()) {
-        printf("--> %s\n", exception_string);
-      }
-    }
-  } else if (!result->IsUndefined()) {
-    String::AsciiValue ascii(result);
-    printf("%s\n", *ascii);
-  }
-
-
-  // The persistent handle needs to be eventually disposed.
-  persistent_context.Dispose();
-
-  return 0;
 }
 
 #endif /* USE_V8 */

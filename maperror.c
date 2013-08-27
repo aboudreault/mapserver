@@ -83,7 +83,8 @@ static char *ms_errorCodes[MS_NUMERRORCODES] = {"",
     "AGG library error.",
     "OWS error.",
     "OpenGL renderer error.",
-    "Renderer error."
+    "Renderer error.",
+    "V8 engine error."                                                
                                                };
 
 #ifndef USE_THREAD
