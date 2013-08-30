@@ -853,7 +853,6 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
     char *filename = layer->styleitem+13;
 
     if (!map->v8context) {
-      msSetError(MS_V8ERR, "FIRST SHIT.", "msLayerGetFeatureStyle()");
       map->v8context = msV8CreateContext();
       if (!map->v8context)
       {
@@ -861,7 +860,7 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
         return MS_FAILURE;
       }
     }
-    msSetError(MS_V8ERR, "SECOND SHIT.", "msLayerGetFeatureStyle()");
+
     if (*filename == '\0') {
       msSetError(MS_V8ERR, "Invalid javascript filename: \"%s\".", "msLayerGetFeatureStyle()", layer->styleitem);
       return MS_FAILURE;

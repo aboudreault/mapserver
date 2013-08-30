@@ -242,7 +242,7 @@ void msV8FreeContext(mapObj *map)
   delete v8context;
 }
 
-/* temporary test function */
+/* temporary test function. this method will return a Handle<Value>. */
 char* msV8ExecuteScript(mapObj *map, const char *filename, layerObj *layer, shapeObj *msshape)
 {
   V8Context* v8context = V8CONTEXT(map);
@@ -270,7 +270,6 @@ char* msV8ExecuteScript(mapObj *map, const char *filename, layerObj *layer, shap
   Handle<Value> source = msV8ReadFile(filename);
   if (source.IsEmpty()) {
     msDebug("msV8ExecuteScript(): Invalid or empty Javascript file: \"%s\".\n", filename);
-    //ThrowException(String::New("Error loading file"));
     return msStrdup("");
   }
 
