@@ -845,88 +845,74 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
 {
   char* stylestring;
   if (layer->styleitem && layer->styleitemindex >=0) {
-    stylestring = shape->values[layer->styleitemindex];
-    /* try to find out the current style format */
-    if (strncasecmp(stylestring,"style",5) == 0) {
-      resetClassStyle(c);
-      c->layer = layer;
-      if (msMaybeAllocateClassStyle(c, 0))
-        return(MS_FAILURE);
-
-      msUpdateStyleFromString(c->styles[0], stylestring, MS_FALSE);
-      if(c->styles[0]->symbolname) {
-        if((c->styles[0]->symbol =  msGetSymbolIndex(&(map->symbolset), c->styles[0]->symbolname, MS_TRUE)) == -1) {
-          msSetError(MS_MISCERR, "Undefined symbol \"%s\" in class of layer %s.", "msLayerGetFeatureStyle()", 
-              c->styles[0]->symbolname, layer->name);
-          return MS_FAILURE;
-        }
-      }
-    } else if (strncasecmp(stylestring,"class",5) == 0) {
-      if (strcasestr(stylestring, " style ") != NULL) {
-        /* reset style if stylestring contains style definitions */
-        resetClassStyle(c);
-        c->layer = layer;
-      }
-      msUpdateClassFromString(c, stylestring, MS_FALSE);
-    } else if (strncasecmp(stylestring,"pen",3) == 0 || strncasecmp(stylestring,"brush",5) == 0 ||
-               strncasecmp(stylestring,"symbol",6) == 0 || strncasecmp(stylestring,"label",5) == 0) {
-      msOGRUpdateStyleFromString(map, layer, c, stylestring);
-    } else {
-      resetClassStyle(c);
-    }
-
-    return MS_SUCCESS;
+    stylestring = msStrdup(shape->values[layer->styleitemindex]);
   }
   else if (strncasecmp(layer->styleitem,"javascript://",13) == 0) {
 #ifdef USE_V8
     char path[MS_MAXPATHLEN];
     char *filename = layer->styleitem+13;
 
-    if (!map->v8_context) {
-      map->v8_context = msV8CreateContext();
+    if (!map->v8context) {
+      msSetError(MS_V8ERR, "FIRST SHIT.", "msLayerGetFeatureStyle()");
+      map->v8context = msV8CreateContext();
+      if (!map->v8context)
+      {
+        msSetError(MS_V8ERR, "Unable to create v8 context.", "msLayerGetFeatureStyle()");
+        return MS_FAILURE;
+      }
     }
-
+    msSetError(MS_V8ERR, "SECOND SHIT.", "msLayerGetFeatureStyle()");
     if (*filename == '\0') {
-      msSetError(MS_MISCERR, "Invalid javascript filename: \"%s\".", "msLayerGetFeatureStyle()", layer->styleitem);
+      msSetError(MS_V8ERR, "Invalid javascript filename: \"%s\".", "msLayerGetFeatureStyle()", layer->styleitem);
       return MS_FAILURE;
     }
     
     msBuildPath(path, map->mappath, filename);
 
-    stylestring = msV8ExecuteScript(map->v8_context, path, layer, shape);
-    
-    /* try to find out the current style format */
-    if (strncasecmp(stylestring,"style",5) == 0) {
-      resetClassStyle(c);
-      c->layer = layer;
-      if (msMaybeAllocateClassStyle(c, 0))
-        return(MS_FAILURE);
-
-      msUpdateStyleFromString(c->styles[0], stylestring, MS_FALSE);
-      if(c->styles[0]->symbolname) {
-        if((c->styles[0]->symbol =  msGetSymbolIndex(&(map->symbolset), c->styles[0]->symbolname, MS_TRUE)) == -1) {
-          msSetError(MS_MISCERR, "Undefined symbol \"%s\" in class of layer %s.", "msLayerGetFeatureStyle()", 
-              c->styles[0]->symbolname, layer->name);
-          return MS_FAILURE;
-        }
-      }
-    } else if (strncasecmp(stylestring,"class",5) == 0) {
-      if (strcasestr(stylestring, " style ") != NULL) {
-        /* reset style if stylestring contains style definitions */
-        resetClassStyle(c);
-        c->layer = layer;
-      }
-      msUpdateClassFromString(c, stylestring, MS_FALSE);
-    }
-
-    free(stylestring);
-    return MS_SUCCESS;
+    stylestring = msV8ExecuteScript(map, path, layer, shape);
 #else
-      msSetError(MS_MISCERR, "V8 Javascript support is not available.", "msLayerGetFeatureStyle()");  
+      msSetError(MS_V8ERR, "V8 Javascript support is not available.", "msLayerGetFeatureStyle()");
+      return MS_FAILURE;
 #endif
   }
-  
-  return MS_FAILURE;
+  else { /* unknown styleitem */
+    return MS_FAILURE;
+  }
+
+  /* try to find out the current style format */
+  if (strncasecmp(stylestring,"style",5) == 0) {
+    resetClassStyle(c);
+    c->layer = layer;
+    if (msMaybeAllocateClassStyle(c, 0)) {
+      free(stylestring);
+      return(MS_FAILURE);
+    }
+
+    msUpdateStyleFromString(c->styles[0], stylestring, MS_FALSE);
+    if(c->styles[0]->symbolname) {
+      if((c->styles[0]->symbol =  msGetSymbolIndex(&(map->symbolset), c->styles[0]->symbolname, MS_TRUE)) == -1) {
+        msSetError(MS_MISCERR, "Undefined symbol \"%s\" in class of layer %s.", "msLayerGetFeatureStyle()", 
+                   c->styles[0]->symbolname, layer->name);
+        free(stylestring);
+        return MS_FAILURE;
+      }
+    }
+  } else if (strncasecmp(stylestring,"class",5) == 0) {
+    if (strcasestr(stylestring, " style ") != NULL) {
+      /* reset style if stylestring contains style definitions */
+      resetClassStyle(c);
+      c->layer = layer;
+    }
+    msUpdateClassFromString(c, stylestring, MS_FALSE);
+  } else if (strncasecmp(stylestring,"pen",3) == 0 || strncasecmp(stylestring,"brush",5) == 0 ||
+             strncasecmp(stylestring,"symbol",6) == 0 || strncasecmp(stylestring,"label",5) == 0) {
+    msOGRUpdateStyleFromString(map, layer, c, stylestring);
+  } else {
+    resetClassStyle(c);
+  }
+
+  free(stylestring);
+  return MS_SUCCESS;
 }
 
 

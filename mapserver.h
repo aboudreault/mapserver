@@ -123,10 +123,6 @@ typedef ms_uint32 *     ms_bitarray;
 #include <gd.h>
 #endif
 
-#ifdef USE_V8
-typedef struct ms_v8_context ms_v8_context;
-#endif
-
 #include <sys/types.h> /* regular expression support */
 
 /* The regex lib from the system and the regex lib from PHP needs to
@@ -1764,7 +1760,7 @@ extern "C" {
 #endif
 
 #ifdef USE_V8
-    ms_v8_context* v8_context;
+    void *v8context;
 #endif
   };
 
@@ -2719,10 +2715,10 @@ extern "C" {
   /*      prototypes for functions in mapv8.cpp                           */
   /* ==================================================================== */
 #ifdef USE_V8
-  MS_DLL_EXPORT char* msV8ExecuteScript(ms_v8_context * context, const char *filename,
+  MS_DLL_EXPORT char* msV8ExecuteScript(mapObj *map, const char *filename,
                                         layerObj *layer, shapeObj *shape);
-  MS_DLL_EXPORT ms_v8_context* msV8CreateContext();
-  MS_DLL_EXPORT void msV8FreeContext(ms_v8_context* mscontext);
+  MS_DLL_EXPORT void* msV8CreateContext();
+  MS_DLL_EXPORT void msV8FreeContext(mapObj *map);
 #endif
   /* ==================================================================== */
   /*      end of prototypes for functions in mapv8.cpp                    */

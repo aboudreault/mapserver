@@ -51,10 +51,15 @@ using v8::TryCatch;
 using v8::Message;
 using v8::ThrowException;
 
-typedef struct ms_v8_context {
+class V8Context {
+public:
+  V8Context(Isolate* isolate)
+    : isolate(isolate) {}
   Isolate* isolate;
   Persistent<Context> context;
-} ms_v8_context;
+};
+
+#define V8CONTEXT(map) ((V8Context*) (map)->v8context)
 
 /* INTERNAL JAVASCRIPT FUNCTIONS */
 
@@ -148,6 +153,24 @@ static Handle<Script> msV8CompileScript(Handle<String> source, Handle<String> sc
   return script;
 }
 
+/* Runs a compiled script and return the result */
+static Handle<Value> msV8RunScript(Handle<Script> script)
+{
+  if (script.IsEmpty()) {
+    ThrowException(String::New("No script to run"));
+    return Handle<Value>();
+  }
+
+  TryCatch try_catch;  
+  Handle<Value> result = script->Run();
+  if (result.IsEmpty()) {
+    return try_catch.HasCaught() ? try_catch.ReThrow():
+      ThrowException(String::New("Error running script"));
+  }
+
+  return result;
+}
+
 /* END OF INTERNAL JAVASCRIPT FUNCTIONS */
 
 /* JAVASCRIPT EXPOSED FUNCTIONS */
@@ -168,7 +191,7 @@ static Handle<Value> msV8Require(const Arguments& args)
           ThrowException(String::New("Error compiling script"));
     }
     
-    Handle<Value> result = script->Run();
+    Handle<Value> result = msV8RunScript(script);
     if (result.IsEmpty()) {
       return try_catch.HasCaught() ? try_catch.ReThrow():
         ThrowException(String::New("Error executing script"));
@@ -193,47 +216,55 @@ static Handle<Value> msV8Print(const Arguments& args)
 /* END OF JAVASCRIPT EXPOSED FUNCTIONS */
 
 /* Create and return a v8 context. Thread safe. */
-ms_v8_context* msV8CreateContext()
+void* msV8CreateContext()
 {
-  ms_v8_context *context = (ms_v8_context*)msSmallMalloc(sizeof(ms_v8_context));
-                                                        
-  context->isolate = Isolate::GetCurrent();
-  HandleScope handle_scope(context->isolate);
+  Isolate *isolate = Isolate::GetCurrent();
+  V8Context* v8context = new V8Context(isolate);
+  
+  HandleScope handle_scope(isolate);
 
   Handle<ObjectTemplate> global = ObjectTemplate::New();
   global->Set(String::New("require"), FunctionTemplate::New(msV8Require));
   global->Set(String::New("print"), FunctionTemplate::New(msV8Print));
   global->Set(String::New("alert"), FunctionTemplate::New(msV8Print));
-
-  Handle<Context> v8_context = Context::New(context->isolate, NULL, global);
-  context->context.Reset(context->isolate, v8_context);
-
-  return context;
+  
+  Handle<Context> context_ = Context::New(isolate, NULL, global);
+  v8context->context.Reset(isolate, context_);
+  
+  return (void*)v8context;
 }
 
-void msV8FreeContext(ms_v8_context* context)
+void msV8FreeContext(mapObj *map)
 {
-  context->context.Dispose();
-  free(context);
+  V8Context* v8context = V8CONTEXT(map);
+
+  v8context->context.Dispose();
+  delete v8context;
 }
 
-char* msV8ExecuteScript(ms_v8_context * mscontext, const char *filename, layerObj *layer, shapeObj *shape)
+/* temporary test function */
+char* msV8ExecuteScript(mapObj *map, const char *filename, layerObj *layer, shapeObj *msshape)
 {
+  V8Context* v8context = V8CONTEXT(map);
   int i;
-  HandleScope handle_scope(mscontext->isolate);
+  HandleScope handle_scope(v8context->isolate);
 
-  Local<Context> context = Local<Context>::New(mscontext->isolate, mscontext->context);
+  Local<Context> context = Local<Context>::New(v8context->isolate, v8context->context);
 
   Context::Scope context_scope(context);  
   Handle<Object> global = context->Global();
 
-  Handle<ObjectTemplate> shape_attributes = ObjectTemplate::New();
+  /* This will be a proper object exposed to JS with dynamic access to attributes (and not a copy),
+     currently only for test purpose. */
+  Handle<ObjectTemplate> shape = ObjectTemplate::New();
+  Handle<ObjectTemplate> attributes = ObjectTemplate::New();
   for (i=0; i<layer->numitems; ++i) {
-    shape_attributes->Set(String::New(layer->items[i]),
-        		  String::New(shape->values[i]));
+    attributes->Set(String::New(layer->items[i]),
+                    String::New(msshape->values[i]));
   }
 
-  global->Set(String::New("shape_attributes"), shape_attributes->NewInstance());
+  shape->Set(String::New("attributes"), attributes);
+  global->Set(String::New("shape"), shape->NewInstance());  
 
   TryCatch try_catch;
   Handle<Value> source = msV8ReadFile(filename);
