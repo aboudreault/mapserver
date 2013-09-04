@@ -30,9 +30,13 @@
 #ifdef USE_V8
 
 #include "mapserver.h"
+#include <string>
+#include <stack>
 #include <streambuf>
 #include <v8.h>
 
+using std::string;
+using std::stack;
 using v8::Isolate;
 using v8::Context;
 using v8::Persistent;
@@ -53,9 +57,10 @@ using v8::ThrowException;
 
 class V8Context {
 public:
-  V8Context(Isolate* isolate)
+  V8Context(Isolate *isolate)
     : isolate(isolate) {}
-  Isolate* isolate;
+  Isolate *isolate;
+  stack<string> paths; /* for relative paths and the require directive */
   Persistent<Context> context;
 };
 
@@ -77,9 +82,17 @@ static char *msV8GetCString(Local<Value> value, const char *fallback = "") {
 }
 
 /* This function load a javascript file in memory for its execution. */
-static Handle<Value> msV8ReadFile(const char *name)
+static Handle<Value> msV8ReadFile(V8Context* v8context, const char *name)
 {
-  FILE* file = fopen(name, "rb");
+  char path[MS_MAXPATHLEN];
+
+  /* construct the path */
+  msBuildPath(path, v8context->paths.top().c_str(), name);
+  char *filepath = msGetPath(path);
+  v8context->paths.push(filepath);
+  free(filepath);
+  
+  FILE* file = fopen(path, "rb");
   if (file == NULL) {
     return ThrowException(String::New("Error loading file"));
   }
@@ -179,10 +192,13 @@ static Handle<Value> msV8RunScript(Handle<Script> script)
    Exposed to JavaScript as 'require()'. */
 static Handle<Value> msV8Require(const Arguments& args)
 {
+  Isolate *isolate = Isolate::GetCurrent();
+  V8Context *v8context = (V8Context*)isolate->GetData();
+    
   for (int i = 0; i < args.Length(); i++) {
     String::Utf8Value str(args[i]);
 
-    Handle<Value> source = msV8ReadFile(*str);
+    Handle<Value> source = msV8ReadFile(v8context, *str);
     Handle<String> script_name = String::New(msStripPath(*str));
     TryCatch try_catch;
     Handle<Script> script = msV8CompileScript(source->ToString(), script_name);
@@ -192,6 +208,7 @@ static Handle<Value> msV8Require(const Arguments& args)
     }
     
     Handle<Value> result = msV8RunScript(script);
+    v8context->paths.pop();
     if (result.IsEmpty()) {
       return try_catch.HasCaught() ? try_catch.ReThrow():
         ThrowException(String::New("Error executing script"));
@@ -216,10 +233,10 @@ static Handle<Value> msV8Print(const Arguments& args)
 /* END OF JAVASCRIPT EXPOSED FUNCTIONS */
 
 /* Create and return a v8 context. Thread safe. */
-void* msV8CreateContext()
+void msV8CreateContext(mapObj *map)
 {
   Isolate *isolate = Isolate::GetCurrent();
-  V8Context* v8context = new V8Context(isolate);
+  V8Context *v8context = new V8Context(isolate);
   
   HandleScope handle_scope(isolate);
 
@@ -230,8 +247,11 @@ void* msV8CreateContext()
   
   Handle<Context> context_ = Context::New(isolate, NULL, global);
   v8context->context.Reset(isolate, context_);
-  
-  return (void*)v8context;
+
+  v8context->paths.push(map->mappath);
+  isolate->SetData(v8context);
+
+  map->v8context = (void*)v8context;
 }
 
 void msV8FreeContext(mapObj *map)
@@ -267,7 +287,7 @@ char* msV8ExecuteScript(mapObj *map, const char *filename, layerObj *layer, shap
   global->Set(String::New("shape"), shape->NewInstance());  
 
   TryCatch try_catch;
-  Handle<Value> source = msV8ReadFile(filename);
+  Handle<Value> source = msV8ReadFile(v8context, filename);
   if (source.IsEmpty()) {
     msDebug("msV8ExecuteScript(): Invalid or empty Javascript file: \"%s\".\n", filename);
     return msStrdup("");
@@ -283,6 +303,7 @@ char* msV8ExecuteScript(mapObj *map, const char *filename, layerObj *layer, shap
   }
 
   Handle<Value> result = script->Run();
+  v8context->paths.pop();  
   if (result.IsEmpty()) {
     if (try_catch.HasCaught()) {
       msV8ReportException(&try_catch);

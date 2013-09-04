@@ -632,7 +632,7 @@ int msLayerIsVisible(mapObj *map, layerObj *layer)
       }
       return(MS_FALSE);
     }
-
+  
     /* now check class scale boundaries (all layers *must* pass these tests) */
     if(layer->numclasses > 0) {
       for(i=0; i<layer->numclasses; i++) {

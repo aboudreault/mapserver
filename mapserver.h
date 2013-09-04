@@ -2717,7 +2717,7 @@ extern "C" {
 #ifdef USE_V8
   MS_DLL_EXPORT char* msV8ExecuteScript(mapObj *map, const char *filename,
                                         layerObj *layer, shapeObj *shape);
-  MS_DLL_EXPORT void* msV8CreateContext();
+  MS_DLL_EXPORT void msV8CreateContext(mapObj *map);
   MS_DLL_EXPORT void msV8FreeContext(mapObj *map);
 #endif
   /* ==================================================================== */

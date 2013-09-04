@@ -849,11 +849,10 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
   }
   else if (strncasecmp(layer->styleitem,"javascript://",13) == 0) {
 #ifdef USE_V8
-    char path[MS_MAXPATHLEN];
     char *filename = layer->styleitem+13;
 
     if (!map->v8context) {
-      map->v8context = msV8CreateContext();
+      msV8CreateContext(map);
       if (!map->v8context)
       {
         msSetError(MS_V8ERR, "Unable to create v8 context.", "msLayerGetFeatureStyle()");
@@ -866,9 +865,7 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
       return MS_FAILURE;
     }
     
-    msBuildPath(path, map->mappath, filename);
-
-    stylestring = msV8ExecuteScript(map, path, layer, shape);
+    stylestring = msV8ExecuteScript(map, filename, layer, shape);
 #else
       msSetError(MS_V8ERR, "V8 Javascript support is not available.", "msLayerGetFeatureStyle()");
       return MS_FAILURE;
