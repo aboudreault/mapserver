@@ -283,7 +283,8 @@ void msV8FreeContext(mapObj *map)
 }
 
 
-/* Create a V8 execution context, execute a script and returns the feature style. This function might change in the future since it's main job is to return a string from the script, which could be more generic. */
+/* Create a V8 execution context, execute a script and return the feature
+ * style. */
 char *msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, shapeObj *shape)
 {
   V8Context* v8context = V8CONTEXT(map);
