@@ -865,7 +865,7 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
       return MS_FAILURE;
     }
     
-    stylestring = msV8ExecuteScript(map, filename, layer, shape);
+    stylestring = msV8GetFeatureStyle(map, filename, layer, shape);
 #else
       msSetError(MS_V8ERR, "V8 Javascript support is not available.", "msLayerGetFeatureStyle()");
       return MS_FAILURE;
@@ -876,6 +876,9 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
   }
 
   /* try to find out the current style format */
+  if (!stylestring)
+    return MS_FAILURE;
+
   if (strncasecmp(stylestring,"style",5) == 0) {
     resetClassStyle(c);
     c->layer = layer;
