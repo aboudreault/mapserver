@@ -285,7 +285,7 @@ void msV8FreeContext(mapObj *map)
 
 /* Create a V8 execution context, execute a script and return the feature
  * style. */
-char *msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, shapeObj *shape)
+char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, shapeObj *shape)
 {
   V8Context* v8context = V8CONTEXT(map);
 
