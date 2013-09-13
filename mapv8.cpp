@@ -70,6 +70,61 @@ public:
 
 #define V8CONTEXT(map) ((V8Context*) (map)->v8context)
 
+/* MAPSERVER OBJECT WRAPPERS */
+
+/* This is currently only an example how to wrap a C object to expose it to
+ * JavaScript. This needs to be investigated more if we decide to create a
+ * complete MS object binding for v8. */
+
+static void msV8WeakShapeObjCallback(Isolate *isolate, Persistent<Object> *object, shapeObj *shape)
+{
+  msFreeShape(shape);
+  object->Dispose();
+  object->Clear();
+}
+
+static Handle<Value> msV8ShapeObjGetNumValues(Local<String> property,
+                                              const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  shapeObj *shape = static_cast<shapeObj*>(ptr);
+  return Integer::New(shape->numvalues);
+}
+
+/* Simple shape object wrapper. Maybe we could create a generic template class
+ * that would handle that stuff */
+static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer, shapeObj *shape, Persistent<Object> *po)
+{
+  Handle<ObjectTemplate> shape_templ = ObjectTemplate::New();
+  shape_templ->SetInternalFieldCount(1);
+
+  /* accessor example */
+  shape_templ->SetAccessor(String::New("numvalues"), msV8ShapeObjGetNumValues);
+
+  /* both accessor and direct object have their pros/cons for this
+   * case. Currently ok since it's read-only */
+  Handle<ObjectTemplate> attributes = ObjectTemplate::New();
+  for (int i=0; i<layer->numitems; ++i) {
+    attributes->Set(String::New(layer->items[i]),
+		    String::New(shape->values[i]));
+  }
+  shape_templ->Set(String::New("attributes"), attributes);
+
+  Handle<Object> obj = shape_templ->NewInstance();
+  obj->SetInternalField(0, External::New(shape));
+
+  if (po) { /* A Persistent object have to be passed if v8 have to free some memory */
+    po->Reset(isolate, obj);
+    po->MakeWeak(shape, msV8WeakShapeObjCallback);
+  }
+
+  return obj;
+}
+
+/* END OF MAPSERVER OBJECT WRAPPERS */
+
 /* INTERNAL JAVASCRIPT FUNCTIONS */
 
 /* Get C char from a v8 string. Caller has to free the returned value. */
@@ -285,41 +340,6 @@ void msV8FreeContext(mapObj *map)
   delete v8context;
 }
 
-
-class Point {
-   public:
-    Point(int x, int y) : x_(x), y_(y) { }
-    int x_, y_;
-};
-
-
-Handle<Value> GetPointX(Local<String> property,
-			const AccessorInfo &info) {
-  Local<Object> self = info.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void* ptr = wrap->Value();
-  int value = static_cast<Point*>(ptr)->x_;
-  return Integer::New(value);
-}
-
-void SetPointX(Local<String> property, Local<Value> value,
-	       const AccessorInfo& info) {
-  Local<Object> self = info.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void* ptr = wrap->Value();
-  static_cast<Point*>(ptr)->x_ = value->Int32Value();
-}
-
-void weakPointCallback(Isolate *isolate, Persistent<Object>* object, Point *point)
-{
-    delete point;
-    msSetError(MS_V8ERR, "delete point", "msV8ReportException()");
-
-    //clear the reference to it
-    object->Dispose();
-    object->Clear();
-}
-
 /* Create a V8 execution context, execute a script and return the feature
  * style. */
 char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, shapeObj *shape)
@@ -330,35 +350,18 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
     msSetError(MS_V8ERR, "V8 Persistent Context is not created.", "msV8ReportException()");
     return NULL;
   }
-  msSetError(MS_V8ERR, "HAHAH", "msV8ReportException()");
+
   HandleScope handle_scope(v8context->isolate);
   /* execution context */
   Local<Context> context = Local<Context>::New(v8context->isolate, v8context->context);
   Context::Scope context_scope(context);
   Handle<Object> global = context->Global();
 
-  /* This will be a proper object exposed to JS with dynamic access to attributes (and not a copy),
-     currently only for test purpose. */
-  Handle<ObjectTemplate> shape_ = ObjectTemplate::New();
-  Handle<ObjectTemplate> attributes = ObjectTemplate::New();
-  for (int i=0; i<layer->numitems; ++i) {
-    attributes->Set(String::New(layer->items[i]),
-		    String::New(shape->values[i]));
-  }
+  /* we don't need this, since the shape object will be free by MapServer */
+  /* Persistent<Object> persistent_shape; */
 
-  shape_->Set(String::New("attributes"), attributes);
-  global->Set(String::New("shape"), shape_->NewInstance());
-
-  Handle<ObjectTemplate> point_templ = ObjectTemplate::New();
-  point_templ->SetInternalFieldCount(1);
-  point_templ->SetAccessor(String::New("x"), GetPointX, SetPointX);
-  Point *p = new Point(2,3);
-  Handle<Object> o = point_templ->NewInstance();
-  o->SetInternalField(0, External::New(p));
-  Persistent<Object> obj;
-  obj.Reset(v8context->isolate, o);
-  obj.MakeWeak(p, weakPointCallback);
-  global->Set(String::New("superman"), o);
+  Handle<Object> shape_ = msV8WrapShapeObj(v8context->isolate, layer, shape, NULL);
+  global->Set(String::New("shape"), shape_);
 
   Handle<Value> result = msV8ExecuteScript(filename);
   if (!result.IsEmpty() && !result->IsUndefined()) {
