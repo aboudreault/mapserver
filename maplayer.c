@@ -843,7 +843,7 @@ int msLayerGetAutoStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* sha
 */
 int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* shape)
 {
-  char* stylestring;
+  char* stylestring = NULL;
   if (layer->styleitem && layer->styleitemindex >=0) {
     stylestring = msStrdup(shape->values[layer->styleitemindex]);
   }

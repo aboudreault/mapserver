@@ -47,9 +47,12 @@ using v8::Local;
 using v8::Object;
 using v8::Value;
 using v8::String;
+using v8::Integer;
 using v8::Undefined;
 using v8::FunctionTemplate;
 using v8::ObjectTemplate;
+using v8::AccessorInfo;
+using v8::External;
 using v8::Arguments;
 using v8::TryCatch;
 using v8::Message;
@@ -99,22 +102,22 @@ void msV8ReportException(TryCatch* try_catch, const char *msg = "")
   Handle<Message> message = try_catch->Message();
   if (message.IsEmpty()) {
     msSetError(MS_V8ERR, "Javascript Exception: %s.", "msV8ReportException()",
-               exception_string);
+	       exception_string);
   } else {
     String::Utf8Value filename(message->GetScriptResourceName());
     const char* filename_string = *filename;
     int linenum = message->GetLineNumber();
     msSetError(MS_V8ERR, "Javascript Exception: %s:%i: %s", "msV8ReportException()",
-               filename_string, linenum, exception_string);
+	       filename_string, linenum, exception_string);
     String::Utf8Value sourceline(message->GetSourceLine());
     const char* sourceline_string = *sourceline;
     msSetError(MS_V8ERR, "Exception source line: %s", "msV8ReportException()",
-               sourceline_string);
+	       sourceline_string);
     String::Utf8Value stack_trace(try_catch->StackTrace());
     if (stack_trace.length() > 0) {
       const char* stack_trace_string = *stack_trace;
       msSetError(MS_V8ERR, "Exception StackTrace: %s", "msV8ReportException()",
-                 stack_trace_string);
+		 stack_trace_string);
     }
   }
 }
@@ -283,6 +286,40 @@ void msV8FreeContext(mapObj *map)
 }
 
 
+class Point {
+   public:
+    Point(int x, int y) : x_(x), y_(y) { }
+    int x_, y_;
+};
+
+
+Handle<Value> GetPointX(Local<String> property,
+			const AccessorInfo &info) {
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void* ptr = wrap->Value();
+  int value = static_cast<Point*>(ptr)->x_;
+  return Integer::New(value);
+}
+
+void SetPointX(Local<String> property, Local<Value> value,
+	       const AccessorInfo& info) {
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void* ptr = wrap->Value();
+  static_cast<Point*>(ptr)->x_ = value->Int32Value();
+}
+
+void weakPointCallback(Isolate *isolate, Persistent<Object>* object, Point *point)
+{
+    delete point;
+    msSetError(MS_V8ERR, "delete point", "msV8ReportException()");
+
+    //clear the reference to it
+    object->Dispose();
+    object->Clear();
+}
+
 /* Create a V8 execution context, execute a script and return the feature
  * style. */
 char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, shapeObj *shape)
@@ -293,7 +330,7 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
     msSetError(MS_V8ERR, "V8 Persistent Context is not created.", "msV8ReportException()");
     return NULL;
   }
-
+  msSetError(MS_V8ERR, "HAHAH", "msV8ReportException()");
   HandleScope handle_scope(v8context->isolate);
   /* execution context */
   Local<Context> context = Local<Context>::New(v8context->isolate, v8context->context);
@@ -306,11 +343,22 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
   Handle<ObjectTemplate> attributes = ObjectTemplate::New();
   for (int i=0; i<layer->numitems; ++i) {
     attributes->Set(String::New(layer->items[i]),
-                    String::New(shape->values[i]));
+		    String::New(shape->values[i]));
   }
 
   shape_->Set(String::New("attributes"), attributes);
   global->Set(String::New("shape"), shape_->NewInstance());
+
+  Handle<ObjectTemplate> point_templ = ObjectTemplate::New();
+  point_templ->SetInternalFieldCount(1);
+  point_templ->SetAccessor(String::New("x"), GetPointX, SetPointX);
+  Point *p = new Point(2,3);
+  Handle<Object> o = point_templ->NewInstance();
+  o->SetInternalField(0, External::New(p));
+  Persistent<Object> obj;
+  obj.Reset(v8context->isolate, o);
+  obj.MakeWeak(p, weakPointCallback);
+  global->Set(String::New("superman"), o);
 
   Handle<Value> result = msV8ExecuteScript(filename);
   if (!result.IsEmpty() && !result->IsUndefined()) {
