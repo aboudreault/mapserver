@@ -84,7 +84,7 @@ static void msV8WeakShapeObjCallback(Isolate *isolate, Persistent<Object> *objec
 }
 
 static Handle<Value> msV8ShapeObjGetNumValues(Local<String> property,
-                                              const AccessorInfo &info)
+    const AccessorInfo &info)
 {
   Local<Object> self = info.Holder();
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
@@ -108,7 +108,7 @@ static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer, shapeO
   Handle<ObjectTemplate> attributes = ObjectTemplate::New();
   for (int i=0; i<layer->numitems; ++i) {
     attributes->Set(String::New(layer->items[i]),
-		    String::New(shape->values[i]));
+                    String::New(shape->values[i]));
   }
   shape_templ->Set(String::New("attributes"), attributes);
 
@@ -157,22 +157,22 @@ void msV8ReportException(TryCatch* try_catch, const char *msg = "")
   Handle<Message> message = try_catch->Message();
   if (message.IsEmpty()) {
     msSetError(MS_V8ERR, "Javascript Exception: %s.", "msV8ReportException()",
-	       exception_string);
+               exception_string);
   } else {
     String::Utf8Value filename(message->GetScriptResourceName());
     const char* filename_string = *filename;
     int linenum = message->GetLineNumber();
     msSetError(MS_V8ERR, "Javascript Exception: %s:%i: %s", "msV8ReportException()",
-	       filename_string, linenum, exception_string);
+               filename_string, linenum, exception_string);
     String::Utf8Value sourceline(message->GetSourceLine());
     const char* sourceline_string = *sourceline;
     msSetError(MS_V8ERR, "Exception source line: %s", "msV8ReportException()",
-	       sourceline_string);
+               sourceline_string);
     String::Utf8Value stack_trace(try_catch->StackTrace());
     if (stack_trace.length() > 0) {
       const char* stack_trace_string = *stack_trace;
       msSetError(MS_V8ERR, "Exception StackTrace: %s", "msV8ReportException()",
-		 stack_trace_string);
+                 stack_trace_string);
     }
   }
 }
