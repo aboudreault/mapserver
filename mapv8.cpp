@@ -48,10 +48,15 @@ using v8::Object;
 using v8::Value;
 using v8::String;
 using v8::Integer;
+using v8::Number;
 using v8::Undefined;
+using v8::Null;
 using v8::FunctionTemplate;
 using v8::ObjectTemplate;
 using v8::AccessorInfo;
+using v8::None;
+using v8::ReadOnly;
+using v8::PROHIBITS_OVERWRITING;
 using v8::External;
 using v8::Arguments;
 using v8::TryCatch;
@@ -69,39 +74,208 @@ public:
 };
 
 #define V8CONTEXT(map) ((V8Context*) (map)->v8context)
+#define SET_GETTER(obj_templ, name, obj_type, property_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
+                   msV8Getter<obj_type, property_type, &obj_type::property, v8_type>, \
+                   0, \
+                   Handle<Value>(), \
+                   PROHIBITS_OVERWRITING, \
+                   ReadOnly)
 
+#define SET_ACCESSOR(obj_templ, name, obj_type, property_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
+                     msV8Getter<obj_type, property_type, &obj_type::property, v8_type>, \
+                     msV8Setter<obj_type, property_type, &obj_type::property>, \
+                     Handle<Value>(), \
+                     PROHIBITS_OVERWRITING, \
+                     None)
+
+#define SET_TEXT_ACCESSOR(obj_templ, name, obj_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
+                     msV8Getter<obj_type, &obj_type::property, v8_type>, \
+                     msV8Setter<obj_type, &obj_type::property> , \
+                     Handle<Value>(), \
+                     PROHIBITS_OVERWRITING, \
+                     None)
+
+static char *msV8GetCString(Local<Value> value, const char *fallback = "");
+static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer,
+                                       shapeObj *shape, Persistent<Object> *po);
+static Handle<Object> msV8WrapLineObj(Isolate *isolate, lineObj *line,
+                                      Handle<Object> parent);
+static Handle<Object> msV8WrapPointObj(Isolate *isolate, pointObj *point,
+                                       Handle<Object> parent);
 /* MAPSERVER OBJECT WRAPPERS */
+/* should be moved somewhere else if we expose more objects */
 
 /* This is currently only an example how to wrap a C object to expose it to
  * JavaScript. This needs to be investigated more if we decide to create a
  * complete MS object binding for v8. */
 
-static void msV8WeakShapeObjCallback(Isolate *isolate, Persistent<Object> *object, shapeObj *shape)
+template <typename T, typename V, V T::*mptr, typename R>
+static Handle<Value> msV8Getter(Local<String> property,
+    const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  T *o = static_cast<T*>(ptr);
+  return R::New(o->*mptr);
+}
+
+/* Specific getter for char* */
+template <typename T, char* T::*mptr, typename R>
+static Handle<Value> msV8Getter(Local<String> property,
+    const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  T *o = static_cast<T*>(ptr);
+  if (o->*mptr == NULL)
+    return Null();
+
+  return R::New(o->*mptr);
+}
+
+template <typename T, typename V, V T::*mptr>
+static void msV8Setter(Local<String> property, Local<Value> value,
+    const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  if (value->IsInt32()) {
+    static_cast<T*>(ptr)->*mptr = value->Int32Value();
+  }
+  else if (value->IsNumber()) {
+    static_cast<T*>(ptr)->*mptr = value->NumberValue();
+  }
+}
+
+/* Specific setter for char* */
+template <typename T, char* T::*mptr>
+static void msV8Setter(Local<String> property, Local<Value> value,
+    const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  char *cvalue = static_cast<T*>(ptr)->*mptr;
+  if (cvalue)
+    msFree(cvalue);
+  static_cast<T*>(ptr)->*mptr = msV8GetCString(value);
+}
+
+static void msV8WeakShapeObjCallback(Isolate *isolate, Persistent<Object> *object,
+                                     shapeObj *shape)
 {
   msFreeShape(shape);
   object->Dispose();
   object->Clear();
 }
 
-static Handle<Value> msV8ShapeObjGetNumValues(Local<String> property,
-    const AccessorInfo &info)
+static Handle<Value> msV8ShapeObjClone(const Arguments& args)
 {
-  Local<Object> self = info.Holder();
+  Local<Object> self = args.Holder();
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
   void *ptr = wrap->Value();
   shapeObj *shape = static_cast<shapeObj*>(ptr);
-  return Integer::New(shape->numvalues);
+  wrap = Local<External>::Cast(self->GetInternalField(1));
+  ptr = wrap->Value();
+  layerObj *layer = static_cast<layerObj*>(ptr);
+
+  shapeObj *new_shape = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
+  msInitShape(new_shape);
+  msCopyShape(shape, new_shape);
+
+  Persistent<Object> persistent_shape;
+  return msV8WrapShapeObj(Isolate::GetCurrent(), layer, new_shape, &persistent_shape);
 }
 
-/* Simple shape object wrapper. Maybe we could create a generic template class
+static Handle<Value> msV8ShapeObjGetLine(const Arguments& args)
+{
+  if (args.Length() < 1 || !args[0]->IsInt32()) {
+    ThrowException(String::New("Invalid argument"));
+    return Undefined();
+  }
+
+  int index = args[0]->Int32Value();
+
+  Local<Object> self = args.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  shapeObj *shape = static_cast<shapeObj*>(ptr);
+
+  if (index < 0 || index >= shape->numlines)
+  {
+    ThrowException(String::New("Invalid line index."));
+    return Undefined();
+  }
+
+  return msV8WrapLineObj(Isolate::GetCurrent(), &shape->line[index], self);
+}
+
+static Handle<Value> msV8LineObjGetPoint(const Arguments& args)
+{
+  if (args.Length() < 1 || !args[0]->IsInt32()) {
+    ThrowException(String::New("Invalid argument"));
+    return Undefined();
+  }
+
+  int index = args[0]->Int32Value();
+  Local<Object> self = args.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  lineObj *line = static_cast<lineObj*>(ptr);
+
+  if (index < 0 || index >= line->numpoints)
+  {
+    ThrowException(String::New("Invalid point index."));
+    return Undefined();
+  }
+
+  return msV8WrapPointObj(Isolate::GetCurrent(), &line->point[index], self);
+}
+
+static Handle<Value> msV8ShapeObjAdd(const Arguments& args)
+{
+  if (args.Length() < 1 || !args[0]->IsObject() ||
+    !args[0]->ToObject()->GetHiddenValue(String::New("__classname__"))->Equals(String::New("lineObj"))) {
+    ThrowException(String::New("Invalid argument"));
+    return Undefined();
+  }
+
+  Local<Object> line_obj = args[0]->ToObject();
+  Local<Object> self = args.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  shapeObj *shape = static_cast<shapeObj*>(ptr);
+  wrap = Local<External>::Cast(line_obj->GetInternalField(0));
+  ptr = wrap->Value();
+  lineObj *line = static_cast<lineObj*>(ptr);
+
+  msAddLine(shape, line);  
+  
+  return Undefined();
+}
+
+/* Shape object wrapper. Maybe we could create a generic template class
  * that would handle that stuff */
-static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer, shapeObj *shape, Persistent<Object> *po)
+static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer,
+                                       shapeObj *shape, Persistent<Object> *po)
 {
   Handle<ObjectTemplate> shape_templ = ObjectTemplate::New();
-  shape_templ->SetInternalFieldCount(1);
+  shape_templ->SetInternalFieldCount(2);
 
-  /* accessor example */
-  shape_templ->SetAccessor(String::New("numvalues"), msV8ShapeObjGetNumValues);
+  SET_GETTER(shape_templ, "numvalues", shapeObj, int, numvalues, Integer);
+  SET_GETTER(shape_templ, "numlines", shapeObj, int, numlines, Integer);
+  SET_GETTER(shape_templ, "index", shapeObj, long, index, Integer);
+  SET_GETTER(shape_templ, "type", shapeObj, int, type, Integer);
+  SET_GETTER(shape_templ, "tileindex", shapeObj, int, tileindex, Integer);
+  SET_ACCESSOR(shape_templ, "classindex", shapeObj, int, classindex, Integer);
+  SET_TEXT_ACCESSOR(shape_templ, "text", shapeObj, text, String);
+
+  shape_templ->Set(String::New("clone"), FunctionTemplate::New(msV8ShapeObjClone));
+  shape_templ->Set(String::New("line"), FunctionTemplate::New(msV8ShapeObjGetLine));
+  shape_templ->Set(String::New("add"), FunctionTemplate::New(msV8ShapeObjAdd));  
 
   /* both accessor and direct object have their pros/cons for this
    * case. Currently ok since it's read-only */
@@ -114,6 +288,8 @@ static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer, shapeO
 
   Handle<Object> obj = shape_templ->NewInstance();
   obj->SetInternalField(0, External::New(shape));
+  obj->SetInternalField(1, External::New(layer)); /* needed for the clone method? layer items.. */
+  obj->SetHiddenValue(String::New("__classname__"), String::New("shapeObj"));
 
   if (po) { /* A Persistent object have to be passed if v8 have to free some memory */
     po->Reset(isolate, obj);
@@ -123,22 +299,205 @@ static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer, shapeO
   return obj;
 }
 
+static Handle<Value> msV8LineObjAddXY(const Arguments& args)
+{
+  if (args.Length() < 2 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
+    ThrowException(String::New("Invalid argument"));
+    return Undefined();
+  }
+
+  Local<Object> self = args.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  lineObj *line = static_cast<lineObj*>(ptr);
+
+  if(line->numpoints == 0) /* new */
+    line->point = (pointObj *)msSmallMalloc(sizeof(pointObj));
+  else /* extend array */
+    line->point = (pointObj *)msSmallRealloc(line->point, sizeof(pointObj)*(line->numpoints+1));
+  
+  line->point[line->numpoints].x = args[0]->NumberValue();
+  line->point[line->numpoints].y = args[1]->NumberValue();
+#ifdef USE_POINT_Z_M
+  if (args.Length() > 2 && args[2]->IsNumber()) 
+    line->point[line->numpoints].m = args[2]->NumberValue();  
+#endif
+  
+  line->numpoints++;
+  
+  return Undefined();
+}
+
+static Handle<Value> msV8LineObjAddXYZ(const Arguments& args)
+{
+  if (args.Length() < 3 || !args[0]->IsNumber() ||
+      !args[1]->IsNumber() || !args[2]->IsNumber()) {
+    ThrowException(String::New("Invalid argument"));
+    return Undefined();
+  }
+
+  Local<Object> self = args.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  lineObj *line = static_cast<lineObj*>(ptr);
+
+  if(line->numpoints == 0) /* new */
+    line->point = (pointObj *)msSmallMalloc(sizeof(pointObj));
+  else /* extend array */
+    line->point = (pointObj *)msSmallRealloc(line->point, sizeof(pointObj)*(line->numpoints+1));
+  
+  line->point[line->numpoints].x = args[0]->NumberValue();
+  line->point[line->numpoints].y = args[1]->NumberValue();
+#ifdef USE_POINT_Z_M
+  line->point[line->numpoints].z = args[2]->NumberValue();
+  if (args.Length() > 3 && args[3]->IsNumber()) 
+    line->point[line->numpoints].m = args[3]->NumberValue();  
+#endif
+  line->numpoints++;
+  
+  return Undefined();
+}
+
+static Handle<Value> msV8LineObjAdd(const Arguments& args)
+{
+  if (args.Length() < 1 || !args[0]->IsObject() ||
+    !args[0]->ToObject()->GetHiddenValue(String::New("__classname__"))->Equals(String::New("pointObj"))) {
+    ThrowException(String::New("Invalid argument"));
+    return Undefined();
+  }
+
+  Local<Object> point_obj = args[0]->ToObject();
+  Local<Object> self = args.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  lineObj *line = static_cast<lineObj*>(ptr);
+  wrap = Local<External>::Cast(point_obj->GetInternalField(0));
+  ptr = wrap->Value();
+  pointObj *point = static_cast<pointObj*>(ptr);
+
+  if(line->numpoints == 0) /* new */
+    line->point = (pointObj *)msSmallMalloc(sizeof(pointObj));
+  else /* extend array */
+    line->point = (pointObj *)msSmallRealloc(line->point, sizeof(pointObj)*(line->numpoints+1));
+  
+  line->point[line->numpoints].x = point->x;
+  line->point[line->numpoints].y = point->y;
+#ifdef USE_POINT_Z_M
+  line->point[line->numpoints].z = point->z;
+  if (args.Length() > 3 && args[3]->IsNumber()) 
+    line->point[line->numpoints].m = point->m;  
+#endif
+  line->numpoints++;
+  
+  return Undefined();
+}
+ 
+/* Line object wrapper. we can only access line through a shape */
+static Handle<Object> msV8WrapLineObj(Isolate *isolate, lineObj *line,
+                                      Handle<Object> parent)
+{
+  Handle<ObjectTemplate> line_templ = ObjectTemplate::New();
+  line_templ->SetInternalFieldCount(1);
+
+  SET_GETTER(line_templ, "numpoints", lineObj, int, numpoints, Integer);
+  line_templ->Set(String::New("point"), FunctionTemplate::New(msV8LineObjGetPoint));
+  line_templ->Set(String::New("addXY"), FunctionTemplate::New(msV8LineObjAddXY));
+  line_templ->Set(String::New("addXYZ"), FunctionTemplate::New(msV8LineObjAddXYZ));
+  line_templ->Set(String::New("add"), FunctionTemplate::New(msV8LineObjAdd));      
+
+  Handle<Object> obj = line_templ->NewInstance();
+  obj->SetInternalField(0, External::New(line));
+  obj->SetHiddenValue(String::New("__parent__"), parent);
+  obj->SetHiddenValue(String::New("__classname__"), String::New("lineObj"));  
+
+  return obj;
+}
+
+static Handle<Value> msV8PointObjSetXY(const Arguments& args)
+{
+  if (args.Length() < 2 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
+    ThrowException(String::New("Invalid argument"));
+    return Undefined();
+  }
+
+  Local<Object> self = args.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  pointObj *point = static_cast<pointObj*>(ptr);
+
+  point->x = args[0]->NumberValue();
+  point->y = args[1]->NumberValue();
+  
+  return Undefined();
+}
+
+static Handle<Value> msV8PointObjSetXYZ(const Arguments& args)
+{
+  if (args.Length() < 3 ||
+      !args[0]->IsNumber() || !args[1]->IsNumber() || !args[2]->IsNumber()) {
+    ThrowException(String::New("Invalid argument"));
+    return Undefined();
+  }
+
+  Local<Object> self = args.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  pointObj *point = static_cast<pointObj*>(ptr);
+  
+  point->x = args[0]->NumberValue();
+  point->y = args[1]->NumberValue();
+
+#ifdef USE_POINT_Z_M
+  point->z = args[2]->NumberValue();  
+  if (args.Length() > 3 && args[3]->IsNumber()) {
+    point->m = args[3]->NumberValue();
+  }
+#endif  
+  return Undefined();
+}
+
+/* Point object wrapper. we can only access line through a shape */
+static Handle<Object> msV8WrapPointObj(Isolate *isolate, pointObj *point,
+                                       Handle<Object> parent)
+{
+  Handle<ObjectTemplate> point_templ = ObjectTemplate::New();
+  point_templ->SetInternalFieldCount(1);
+  point_templ->Set(String::New("setXY"), FunctionTemplate::New(msV8PointObjSetXY));
+  point_templ->Set(String::New("setXYZ"), FunctionTemplate::New(msV8PointObjSetXYZ));  
+  
+  SET_ACCESSOR(point_templ, "x", pointObj, double, x, Number);
+  SET_ACCESSOR(point_templ, "y", pointObj, double, y, Number);
+
+#ifdef USE_POINT_Z_M
+  SET_ACCESSOR(point_templ, "z", pointObj, double, z, Number);
+  SET_ACCESSOR(point_templ, "m", pointObj, double, m, Number);    
+#endif
+  
+  Handle<Object> obj = point_templ->NewInstance();
+  obj->SetInternalField(0, External::New(point));
+  obj->SetHiddenValue(String::New("__parent__"), parent);
+  obj->SetHiddenValue(String::New("__classname__"), String::New("pointObj"));
+
+  return obj;
+}
+
 /* END OF MAPSERVER OBJECT WRAPPERS */
 
 /* INTERNAL JAVASCRIPT FUNCTIONS */
 
 /* Get C char from a v8 string. Caller has to free the returned value. */
-// static char *msV8GetCString(Local<Value> value, const char *fallback = "") {
-//   if (value->IsString()) {
-//     String::AsciiValue string(value);
-//     char *str = (char *) malloc(string.length() + 1);
-//     strcpy(str, *string);
-//     return str;
-//   }
-//   char *str = (char *) malloc(strlen(fallback) + 1);
-//   strcpy(str, fallback);
-//   return str;
-// }
+static char *msV8GetCString(Local<Value> value, const char *fallback)
+{
+  if (value->IsString()) {
+    String::AsciiValue string(value);
+    char *str = (char *) malloc(string.length() + 1);
+    strcpy(str, *string);
+    return str;
+  }
+  char *str = (char *) malloc(strlen(fallback) + 1);
+  strcpy(str, fallback);
+  return str;
+}
 
 /* Handler for Javascript Exceptions. Not exposed to JavaScript, used internally.
    Most of the code from v8 shell example.
@@ -293,7 +652,6 @@ static Handle<Value> msV8Require(const Arguments& args)
   }
 
   return Undefined();
-
 }
 
 /* Javascript Function print: print to debug file.
