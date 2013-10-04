@@ -32,11 +32,13 @@
 #include "mapserver.h"
 #include <string>
 #include <stack>
+#include <map>
 #include <streambuf>
 #include <v8.h>
 
 using std::string;
 using std::stack;
+using std::map;
 using v8::Isolate;
 using v8::Context;
 using v8::Persistent;
@@ -51,6 +53,7 @@ using v8::Integer;
 using v8::Number;
 using v8::Undefined;
 using v8::Null;
+using v8::Function;
 using v8::FunctionTemplate;
 using v8::ObjectTemplate;
 using v8::AccessorInfo;
@@ -172,15 +175,44 @@ static void msV8WeakShapeObjCallback(Isolate *isolate, Persistent<Object> *objec
   object->Clear();
 }
 
+static void msV8WeakAttMapCallback(Isolate *isolate, Persistent<Object> *object,
+                                   map<string, int> *map)
+{
+  delete map;
+  object->Dispose();
+  object->Clear();
+}
+
+static Handle<Value> msV8ShapeObjNew(const Arguments& args)
+{
+  Local<Object> self = args.Holder();
+  shapeObj *shape;
+  shape = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
+  msInitShape(shape);
+  if(args.Length() >= 1) {
+    shape->type = args[0]->Int32Value();
+  }
+  else {
+    shape->type = MS_SHAPE_NULL;
+  }
+
+  Persistent<Object> persistent_shape;
+  return self;//msV8WrapShapeObj(Isolate::GetCurrent(), NULL, shape, &persistent_shape);  
+}
+
 static Handle<Value> msV8ShapeObjClone(const Arguments& args)
 {
   Local<Object> self = args.Holder();
+  layerObj *layer = NULL;  
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
   void *ptr = wrap->Value();
   shapeObj *shape = static_cast<shapeObj*>(ptr);
-  wrap = Local<External>::Cast(self->GetInternalField(1));
-  ptr = wrap->Value();
-  layerObj *layer = static_cast<layerObj*>(ptr);
+
+  if (self->InternalFieldCount()  == 2) {
+    wrap = Local<External>::Cast(self->GetInternalField(1));
+    ptr = wrap->Value();
+    layer = static_cast<layerObj*>(ptr);
+  }
 
   shapeObj *new_shape = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
   msInitShape(new_shape);
@@ -235,7 +267,7 @@ static Handle<Value> msV8LineObjGetPoint(const Arguments& args)
   return msV8WrapPointObj(Isolate::GetCurrent(), &line->point[index], self);
 }
 
-static Handle<Value> msV8ShapeObjAdd(const Arguments& args)
+static Handle<Value> msV8ShapeObjAddLine(const Arguments& args)
 {
   if (args.Length() < 1 || !args[0]->IsObject() ||
     !args[0]->ToObject()->GetHiddenValue(String::New("__classname__"))->Equals(String::New("lineObj"))) {
@@ -252,9 +284,58 @@ static Handle<Value> msV8ShapeObjAdd(const Arguments& args)
   ptr = wrap->Value();
   lineObj *line = static_cast<lineObj*>(ptr);
 
-  msAddLine(shape, line);  
-  
+  msAddLine(shape, line);
+
   return Undefined();
+}
+
+static Handle<Value> msV8ShapeObjGetValue(Local<String> name,
+                                          const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  map<string, int> *indexes = static_cast<map<string, int> *>(ptr);
+  wrap = Local<External>::Cast(self->GetInternalField(1));
+  ptr = wrap->Value();
+  char **values = static_cast<char **>(ptr);
+
+  String::Utf8Value utf8_value(name);
+  string key = string(*utf8_value);
+  map<string, int>::iterator iter = indexes->find(key);
+
+  if (iter == indexes->end()) return Handle<Value>();
+
+  const int &index = (*iter).second;
+  return String::New(values[index]);
+}
+
+static Handle<Value> msV8ShapeObjSetValue(Local<String> name,
+                                 Local<Value> value,
+                                 const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  map<string, int> *indexes = static_cast<map<string, int> *>(ptr);
+  wrap = Local<External>::Cast(self->GetInternalField(1));
+  ptr = wrap->Value();
+  char **values = static_cast<char **>(ptr);
+
+  String::Utf8Value utf8_name(name), utf8_value(value);
+  string key = string(*utf8_name);
+
+  map<string, int>::iterator iter = indexes->find(key);
+
+  if (iter == indexes->end()) {
+    ThrowException(String::New("Invalid value name."));
+    return Handle<Value>();
+  }
+
+  const int &index = (*iter).second;
+  msFree(values[index]);
+  values[index] = msStrdup(*utf8_value);
+  return Handle<Value>();
 }
 
 /* Shape object wrapper. Maybe we could create a generic template class
@@ -263,7 +344,7 @@ static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer,
                                        shapeObj *shape, Persistent<Object> *po)
 {
   Handle<ObjectTemplate> shape_templ = ObjectTemplate::New();
-  shape_templ->SetInternalFieldCount(2);
+  shape_templ->SetInternalFieldCount(layer ? 2 : 1);
 
   SET_GETTER(shape_templ, "numvalues", shapeObj, int, numvalues, Integer);
   SET_GETTER(shape_templ, "numlines", shapeObj, int, numlines, Integer);
@@ -275,21 +356,33 @@ static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer,
 
   shape_templ->Set(String::New("clone"), FunctionTemplate::New(msV8ShapeObjClone));
   shape_templ->Set(String::New("line"), FunctionTemplate::New(msV8ShapeObjGetLine));
-  shape_templ->Set(String::New("add"), FunctionTemplate::New(msV8ShapeObjAdd));  
-
-  /* both accessor and direct object have their pros/cons for this
-   * case. Currently ok since it's read-only */
-  Handle<ObjectTemplate> attributes = ObjectTemplate::New();
-  for (int i=0; i<layer->numitems; ++i) {
-    attributes->Set(String::New(layer->items[i]),
-                    String::New(shape->values[i]));
-  }
-  shape_templ->Set(String::New("attributes"), attributes);
+  shape_templ->Set(String::New("add"), FunctionTemplate::New(msV8ShapeObjAddLine));
 
   Handle<Object> obj = shape_templ->NewInstance();
   obj->SetInternalField(0, External::New(shape));
-  obj->SetInternalField(1, External::New(layer)); /* needed for the clone method? layer items.. */
+  if (layer) {
+    obj->SetInternalField(1, External::New(layer)); /* needed for the clone method? layer items.. */
+  }
   obj->SetHiddenValue(String::New("__classname__"), String::New("shapeObj"));
+
+  /* shape attributes */
+  map<string, int> *attributes_map = new map<string, int>();
+  if (layer) {
+    for (int i=0; i<layer->numitems; ++i) {
+      (*attributes_map)[string(layer->items[i])] = i;
+    }
+  }
+  Handle<ObjectTemplate> attributes_templ = ObjectTemplate::New();
+  attributes_templ->SetInternalFieldCount(2);
+  attributes_templ->SetNamedPropertyHandler(msV8ShapeObjGetValue,
+                                            msV8ShapeObjSetValue);
+  Handle<Object> attributes = attributes_templ->NewInstance();
+  attributes->SetInternalField(0, External::New(attributes_map));
+  attributes->SetInternalField(1, External::New(shape->values));
+  attributes->SetHiddenValue(String::New("__parent__"), obj);
+  obj->Set(String::New("attributes"), attributes);
+  Persistent<Object> attributes_po(isolate, attributes);
+  attributes_po.MakeWeak(attributes_map, msV8WeakAttMapCallback);
 
   if (po) { /* A Persistent object have to be passed if v8 have to free some memory */
     po->Reset(isolate, obj);
@@ -315,16 +408,16 @@ static Handle<Value> msV8LineObjAddXY(const Arguments& args)
     line->point = (pointObj *)msSmallMalloc(sizeof(pointObj));
   else /* extend array */
     line->point = (pointObj *)msSmallRealloc(line->point, sizeof(pointObj)*(line->numpoints+1));
-  
+
   line->point[line->numpoints].x = args[0]->NumberValue();
   line->point[line->numpoints].y = args[1]->NumberValue();
 #ifdef USE_POINT_Z_M
-  if (args.Length() > 2 && args[2]->IsNumber()) 
-    line->point[line->numpoints].m = args[2]->NumberValue();  
+  if (args.Length() > 2 && args[2]->IsNumber())
+    line->point[line->numpoints].m = args[2]->NumberValue();
 #endif
-  
+
   line->numpoints++;
-  
+
   return Undefined();
 }
 
@@ -345,20 +438,20 @@ static Handle<Value> msV8LineObjAddXYZ(const Arguments& args)
     line->point = (pointObj *)msSmallMalloc(sizeof(pointObj));
   else /* extend array */
     line->point = (pointObj *)msSmallRealloc(line->point, sizeof(pointObj)*(line->numpoints+1));
-  
+
   line->point[line->numpoints].x = args[0]->NumberValue();
   line->point[line->numpoints].y = args[1]->NumberValue();
 #ifdef USE_POINT_Z_M
   line->point[line->numpoints].z = args[2]->NumberValue();
-  if (args.Length() > 3 && args[3]->IsNumber()) 
-    line->point[line->numpoints].m = args[3]->NumberValue();  
+  if (args.Length() > 3 && args[3]->IsNumber())
+    line->point[line->numpoints].m = args[3]->NumberValue();
 #endif
   line->numpoints++;
-  
+
   return Undefined();
 }
 
-static Handle<Value> msV8LineObjAdd(const Arguments& args)
+static Handle<Value> msV8LineObjAddPoint(const Arguments& args)
 {
   if (args.Length() < 1 || !args[0]->IsObject() ||
     !args[0]->ToObject()->GetHiddenValue(String::New("__classname__"))->Equals(String::New("pointObj"))) {
@@ -379,19 +472,19 @@ static Handle<Value> msV8LineObjAdd(const Arguments& args)
     line->point = (pointObj *)msSmallMalloc(sizeof(pointObj));
   else /* extend array */
     line->point = (pointObj *)msSmallRealloc(line->point, sizeof(pointObj)*(line->numpoints+1));
-  
+
   line->point[line->numpoints].x = point->x;
   line->point[line->numpoints].y = point->y;
 #ifdef USE_POINT_Z_M
   line->point[line->numpoints].z = point->z;
-  if (args.Length() > 3 && args[3]->IsNumber()) 
-    line->point[line->numpoints].m = point->m;  
+  if (args.Length() > 3 && args[3]->IsNumber())
+    line->point[line->numpoints].m = point->m;
 #endif
   line->numpoints++;
-  
+
   return Undefined();
 }
- 
+
 /* Line object wrapper. we can only access line through a shape */
 static Handle<Object> msV8WrapLineObj(Isolate *isolate, lineObj *line,
                                       Handle<Object> parent)
@@ -403,12 +496,12 @@ static Handle<Object> msV8WrapLineObj(Isolate *isolate, lineObj *line,
   line_templ->Set(String::New("point"), FunctionTemplate::New(msV8LineObjGetPoint));
   line_templ->Set(String::New("addXY"), FunctionTemplate::New(msV8LineObjAddXY));
   line_templ->Set(String::New("addXYZ"), FunctionTemplate::New(msV8LineObjAddXYZ));
-  line_templ->Set(String::New("add"), FunctionTemplate::New(msV8LineObjAdd));      
+  line_templ->Set(String::New("add"), FunctionTemplate::New(msV8LineObjAddPoint));
 
   Handle<Object> obj = line_templ->NewInstance();
   obj->SetInternalField(0, External::New(line));
   obj->SetHiddenValue(String::New("__parent__"), parent);
-  obj->SetHiddenValue(String::New("__classname__"), String::New("lineObj"));  
+  obj->SetHiddenValue(String::New("__classname__"), String::New("lineObj"));
 
   return obj;
 }
@@ -427,7 +520,7 @@ static Handle<Value> msV8PointObjSetXY(const Arguments& args)
 
   point->x = args[0]->NumberValue();
   point->y = args[1]->NumberValue();
-  
+
   return Undefined();
 }
 
@@ -443,16 +536,16 @@ static Handle<Value> msV8PointObjSetXYZ(const Arguments& args)
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
   void *ptr = wrap->Value();
   pointObj *point = static_cast<pointObj*>(ptr);
-  
+
   point->x = args[0]->NumberValue();
   point->y = args[1]->NumberValue();
 
 #ifdef USE_POINT_Z_M
-  point->z = args[2]->NumberValue();  
+  point->z = args[2]->NumberValue();
   if (args.Length() > 3 && args[3]->IsNumber()) {
     point->m = args[3]->NumberValue();
   }
-#endif  
+#endif
   return Undefined();
 }
 
@@ -463,16 +556,16 @@ static Handle<Object> msV8WrapPointObj(Isolate *isolate, pointObj *point,
   Handle<ObjectTemplate> point_templ = ObjectTemplate::New();
   point_templ->SetInternalFieldCount(1);
   point_templ->Set(String::New("setXY"), FunctionTemplate::New(msV8PointObjSetXY));
-  point_templ->Set(String::New("setXYZ"), FunctionTemplate::New(msV8PointObjSetXYZ));  
-  
+  point_templ->Set(String::New("setXYZ"), FunctionTemplate::New(msV8PointObjSetXYZ));
+
   SET_ACCESSOR(point_templ, "x", pointObj, double, x, Number);
   SET_ACCESSOR(point_templ, "y", pointObj, double, y, Number);
 
 #ifdef USE_POINT_Z_M
   SET_ACCESSOR(point_templ, "z", pointObj, double, z, Number);
-  SET_ACCESSOR(point_templ, "m", pointObj, double, m, Number);    
+  SET_ACCESSOR(point_templ, "m", pointObj, double, m, Number);
 #endif
-  
+
   Handle<Object> obj = point_templ->NewInstance();
   obj->SetInternalField(0, External::New(point));
   obj->SetHiddenValue(String::New("__parent__"), parent);
@@ -717,10 +810,16 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
 
   /* we don't need this, since the shape object will be free by MapServer */
   /* Persistent<Object> persistent_shape; */
-
   Handle<Object> shape_ = msV8WrapShapeObj(v8context->isolate, layer, shape, NULL);
   global->Set(String::New("shape"), shape_);
 
+  Handle<FunctionTemplate> tpl =  FunctionTemplate::New(msV8ShapeObjNew);
+  tpl->SetClassName(String::NewSymbol("shapeObj"));
+  tpl->InstanceTemplate()->SetInternalFieldCount(1);  
+  tpl->PrototypeTemplate()->Set(String::NewSymbol("test"), String::New("teee"));
+  Handle<Function> constructor = tpl->GetFunction();
+  global->Set(String::New("shapeObj"), constructor);
+              
   Handle<Value> result = msV8ExecuteScript(filename);
   if (!result.IsEmpty() && !result->IsUndefined()) {
     String::AsciiValue ascii(result);
@@ -728,7 +827,6 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
   }
 
   return NULL;
-
 }
 
 #endif /* USE_V8 */
