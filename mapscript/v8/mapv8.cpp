@@ -27,84 +27,11 @@
  **********************************************************************/
 
 #include "mapserver-config.h"
-#ifdef USE_V8
+#ifdef USE_V8_MAPSCRIPT
 
-#include "mapserver.h"
-#include <string>
-#include <stack>
 #include <map>
-#include <streambuf>
-#include <v8.h>
+#include "v8_mapscript.h"
 
-using std::string;
-using std::stack;
-using std::map;
-using v8::Isolate;
-using v8::Context;
-using v8::Persistent;
-using v8::HandleScope;
-using v8::Handle;
-using v8::Script;
-using v8::Local;
-using v8::Object;
-using v8::Value;
-using v8::String;
-using v8::Integer;
-using v8::Number;
-using v8::Undefined;
-using v8::Null;
-using v8::Function;
-using v8::FunctionTemplate;
-using v8::ObjectTemplate;
-using v8::AccessorInfo;
-using v8::None;
-using v8::ReadOnly;
-using v8::PROHIBITS_OVERWRITING;
-using v8::External;
-using v8::Arguments;
-using v8::TryCatch;
-using v8::Message;
-using v8::ThrowException;
-
-class V8Context
-{
-public:
-  V8Context(Isolate *isolate)
-    : isolate(isolate) {}
-  Isolate *isolate;
-  stack<string> paths; /* for relative paths and the require function */
-  Persistent<Context> context;
-};
-
-#define V8CONTEXT(map) ((V8Context*) (map)->v8context)
-#define SET_GETTER(obj_templ, name, obj_type, property_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
-                   msV8Getter<obj_type, property_type, &obj_type::property, v8_type>, \
-                   0, \
-                   Handle<Value>(), \
-                   PROHIBITS_OVERWRITING, \
-                   ReadOnly)
-
-#define SET_ACCESSOR(obj_templ, name, obj_type, property_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
-                     msV8Getter<obj_type, property_type, &obj_type::property, v8_type>, \
-                     msV8Setter<obj_type, property_type, &obj_type::property>, \
-                     Handle<Value>(), \
-                     PROHIBITS_OVERWRITING, \
-                     None)
-
-#define SET_TEXT_ACCESSOR(obj_templ, name, obj_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
-                     msV8Getter<obj_type, &obj_type::property, v8_type>, \
-                     msV8Setter<obj_type, &obj_type::property> , \
-                     Handle<Value>(), \
-                     PROHIBITS_OVERWRITING, \
-                     None)
-
-static char *msV8GetCString(Local<Value> value, const char *fallback = "");
-static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer,
-                                       shapeObj *shape, Persistent<Object> *po);
-static Handle<Object> msV8WrapLineObj(Isolate *isolate, lineObj *line,
-                                      Handle<Object> parent);
-static Handle<Object> msV8WrapPointObj(Isolate *isolate, pointObj *point,
-                                       Handle<Object> parent);
 /* MAPSERVER OBJECT WRAPPERS */
 /* should be moved somewhere else if we expose more objects */
 
@@ -847,4 +774,4 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
   return NULL;
 }
 
-#endif /* USE_V8 */
+#endif /* USE_V8_MAPSCRIPT */

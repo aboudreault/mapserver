@@ -1825,7 +1825,7 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
     queryObj query;
 #endif
 
-#ifdef USE_V8
+#ifdef USE_V8_MAPSCRIPT
     void *v8context;
 #endif
   };
@@ -2792,7 +2792,7 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
   /* ==================================================================== */
   /*      prototypes for functions in mapv8.cpp                           */
   /* ==================================================================== */
-#ifdef USE_V8
+#ifdef USE_V8_MAPSCRIPT
   MS_DLL_EXPORT char* msV8GetFeatureStyle(mapObj *map, const char *filename,
                                           layerObj *layer, shapeObj *shape);
   MS_DLL_EXPORT void msV8CreateContext(mapObj *map);

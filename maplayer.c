@@ -868,7 +868,7 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
     stylestring = msStrdup(shape->values[layer->styleitemindex]);
   }
   else if (strncasecmp(layer->styleitem,"javascript://",13) == 0) {
-#ifdef USE_V8
+#ifdef USE_V8_MAPSCRIPT
     char *filename = layer->styleitem+13;
 
     if (!map->v8context) {
