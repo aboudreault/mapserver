@@ -338,6 +338,23 @@ static Handle<Value> msV8ShapeObjSetValue(Local<String> name,
   return Handle<Value>();
 }
 
+static Handle<Value> msV8ShapeObjCleanGeometry(const Arguments& args)
+{
+  Local<Object> self = args.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  shapeObj *shape = static_cast<shapeObj*>(ptr);
+
+  for (int c = 0; c < shape->numlines; c++) {
+    free(shape->line[c].point);
+  }
+  if (shape->line) free(shape->line);
+  shape->line = NULL;
+  shape->numlines = 0;
+
+  return Undefined();
+}
+
 /* Shape object wrapper. Maybe we could create a generic template class
  * that would handle that stuff */
 static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer,
@@ -357,6 +374,7 @@ static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer,
   shape_templ->Set(String::New("clone"), FunctionTemplate::New(msV8ShapeObjClone));
   shape_templ->Set(String::New("line"), FunctionTemplate::New(msV8ShapeObjGetLine));
   shape_templ->Set(String::New("add"), FunctionTemplate::New(msV8ShapeObjAddLine));
+  shape_templ->Set(String::New("cleanGeometry"), FunctionTemplate::New(msV8ShapeObjCleanGeometry));  
 
   Handle<Object> obj = shape_templ->NewInstance();
   obj->SetInternalField(0, External::New(shape));
