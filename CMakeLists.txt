@@ -173,8 +173,10 @@ renderers/agg/src/clipper.cpp
 include_directories(renderers/agg/include)
 
 set(v8_SOURCES
+  mapscript/v8/v8_mapscript.cpp
   mapscript/v8/mapv8.cpp
 )
+include_directories(mapscript/v8/)
 
 #add_definitions(-DHASH_DEBUG=1)
 if(WIN32)

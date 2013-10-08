@@ -32,6 +32,7 @@
 #include "mapserver.h"
 #include <string>
 #include <stack>
+#include <map>
 #include <v8.h>
 
 using std::string;
@@ -82,6 +83,15 @@ public:
                    PROHIBITS_OVERWRITING, \
                    ReadOnly)
 
+#define SET_GETTER2(name, property_type, property, v8_type) this->obj_template->SetAccessor(String::New(name), \
+                   msV8Getter<T, property_type, &T::property, v8_type>, \
+                   0, \
+                   Handle<Value>(), \
+                   PROHIBITS_OVERWRITING, \
+                   ReadOnly)
+
+#define ADD_DOUBLE_GETTER(name, property) SET_GETTER2(name, double, property, Number)
+
 #define SET_ACCESSOR(obj_templ, name, obj_type, property_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
                      msV8Getter<obj_type, property_type, &obj_type::property, v8_type>, \
                      msV8Setter<obj_type, property_type, &obj_type::property>, \
@@ -104,4 +114,39 @@ static Handle<Object> msV8WrapLineObj(Isolate *isolate, lineObj *line,
 static Handle<Object> msV8WrapPointObj(Isolate *isolate, pointObj *point,
                                        Handle<Object> parent);
 
+template<typename T>
+class V8Object
+{
+ private:
+  template <typename V, V T::*mptr, typename R>
+    Handle<Value> getter(Local<String> property,
+                         const AccessorInfo &info);
+    
+  void (V8Object::*addDoubleAccessor_)(const char* property_name, double T::*mptr,
+                                       int read_only, int free_value);
+  void (V8Object::*addIntegerAccessor_)(const char* property_name, int T::*mptr,
+                                        int read_only, int free_value);
+  void (V8Object::*addStringAccessor_)(const char* property_name, char* T::*mptr,
+                                       int read_only, int free_value);
+
+ protected:
+  T* obj;
+  Handle<ObjectTemplate> obj_template;
+
+  template<typename T2, typename R>
+    void addAccessor(const char* property_name, T2 T::*mptr,
+                     int read_only=MS_FALSE, int free_value=MS_FALSE);
+
+  void addDoubleAccessor(const char* property_name, double T::*mptr,
+                         int read_only=MS_FALSE, int free_value=MS_FALSE);
+  void addIntegerAccessor(const char* property_name, int T::*mptr,
+                          int read_only=MS_FALSE, int free_value=MS_FALSE);
+  void addStringAccessor(const char* property_name, char* T::*mptr,
+                         int read_only=MS_FALSE, int free_value=MS_FALSE);
+  
+ public: 
+  V8Object(T* obj);
+
+  
+};
 #endif

@@ -437,7 +437,12 @@ static Handle<Object> msV8WrapLineObj(Isolate *isolate, lineObj *line,
   Handle<ObjectTemplate> line_templ = ObjectTemplate::New();
   line_templ->SetInternalFieldCount(1);
 
-  SET_GETTER(line_templ, "numpoints", lineObj, int, numpoints, Integer);
+  //SET_GETTER(line_templ, "numpoints", lineObj, int, numpoints, Integer);
+  line_templ->SetAccessor(String::New("numpoints"),
+                          msV8Getter<lineObj, int, &lineObj::numpoints, Integer>, 0,Handle<Value>(), PROHIBITS_OVERWRITING,
+                          ReadOnly);
+
+  
   line_templ->Set(String::New("point"), FunctionTemplate::New(msV8LineObjGetPoint));
   line_templ->Set(String::New("addXY"), FunctionTemplate::New(msV8LineObjAddXY));
   line_templ->Set(String::New("addXYZ"), FunctionTemplate::New(msV8LineObjAddXYZ));
@@ -516,6 +521,9 @@ static Handle<Object> msV8WrapPointObj(Isolate *isolate, pointObj *point,
   obj->SetHiddenValue(String::New("__parent__"), parent);
   obj->SetHiddenValue(String::New("__classname__"), String::New("pointObj"));
 
+  V8Object<pointObj> p(point);
+  //p.addDoubleAccessor();
+  
   return obj;
 }
 
