@@ -76,32 +76,46 @@ public:
 };
 
 #define V8CONTEXT(map) ((V8Context*) (map)->v8context)
-#define SET_GETTER(obj_templ, name, obj_type, property_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
-                   msV8Getter<obj_type, property_type, &obj_type::property, v8_type>, \
-                   0, \
-                   Handle<Value>(), \
-                   PROHIBITS_OVERWRITING, \
-                   ReadOnly)
 
-#define SET_GETTER2(name, property_type, property, v8_type) this->obj_template->SetAccessor(String::New(name), \
+#define ADD_GETTER(name, property_type, property, v8_type) this->obj_template->SetAccessor(String::New(name), \
                    msV8Getter<T, property_type, &T::property, v8_type>, \
                    0, \
                    Handle<Value>(), \
                    PROHIBITS_OVERWRITING, \
                    ReadOnly)
 
-#define ADD_DOUBLE_GETTER(name, property) SET_GETTER2(name, double, property, Number)
+#define ADD_DOUBLE_GETTER(name, property) ADD_GETTER(name, double, property, Number)
+#define ADD_INTEGER_GETTER(name, property) ADD_GETTER(name, int, property, Integer)
+#define ADD_STRING_GETTER(name, property) ADD_GETTER(name, char*, property, String)
 
-#define SET_ACCESSOR(obj_templ, name, obj_type, property_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
-                     msV8Getter<obj_type, property_type, &obj_type::property, v8_type>, \
-                     msV8Setter<obj_type, property_type, &obj_type::property>, \
+#define ADD_ACCESSOR(name, property_type, property, v8_type) this->obj_template->SetAccessor(String::New(name), \
+                     getter<property_type, &T::property, v8_type>, \
+                     msV8Setter<T, property_type, &T::property>, \
                      Handle<Value>(), \
                      PROHIBITS_OVERWRITING, \
                      None)
 
+#define ADD_DOUBLE_ACCESSOR(name, property) ADD_ACCESSOR(name, double, property, Number)
+#define ADD_INTEGER_ACCESSOR(name, property) ADD_ACCESSOR(name, double, property, Integer)
+#define ADD_STRING_ACCESSOR(name, property) ADD_ACCESSOR(name, char*, property, String)
+
 #define SET_TEXT_ACCESSOR(obj_templ, name, obj_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
                      msV8Getter<obj_type, &obj_type::property, v8_type>, \
                      msV8Setter<obj_type, &obj_type::property> , \
+                     Handle<Value>(), \
+                     PROHIBITS_OVERWRITING, \
+                     None)
+
+#define SET_GETTER_OLD(obj_templ, name, obj_type, property_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
+                   msV8Getter<obj_type, property_type, &obj_type::property, v8_type>, \
+                   0, \
+                   Handle<Value>(), \
+                   PROHIBITS_OVERWRITING, \
+                   ReadOnly)
+
+#define SET_ACCESSOR_OLD(obj_templ, name, obj_type, property_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
+                     msV8Getter<obj_type, property_type, &obj_type::property, v8_type>, \
+                     msV8Setter<obj_type, property_type, &obj_type::property>, \
                      Handle<Value>(), \
                      PROHIBITS_OVERWRITING, \
                      None)
@@ -119,30 +133,11 @@ class V8Object
 {
  private:
   template <typename V, V T::*mptr, typename R>
-    Handle<Value> getter(Local<String> property,
-                         const AccessorInfo &info);
-    
-  void (V8Object::*addDoubleAccessor_)(const char* property_name, double T::*mptr,
-                                       int read_only, int free_value);
-  void (V8Object::*addIntegerAccessor_)(const char* property_name, int T::*mptr,
-                                        int read_only, int free_value);
-  void (V8Object::*addStringAccessor_)(const char* property_name, char* T::*mptr,
-                                       int read_only, int free_value);
-
+    static Handle<Value> getter(Local<String> property,
+                                const AccessorInfo &info);
  protected:
   T* obj;
   Handle<ObjectTemplate> obj_template;
-
-  template<typename T2, typename R>
-    void addAccessor(const char* property_name, T2 T::*mptr,
-                     int read_only=MS_FALSE, int free_value=MS_FALSE);
-
-  void addDoubleAccessor(const char* property_name, double T::*mptr,
-                         int read_only=MS_FALSE, int free_value=MS_FALSE);
-  void addIntegerAccessor(const char* property_name, int T::*mptr,
-                          int read_only=MS_FALSE, int free_value=MS_FALSE);
-  void addStringAccessor(const char* property_name, char* T::*mptr,
-                         int read_only=MS_FALSE, int free_value=MS_FALSE);
   
  public: 
   V8Object(T* obj);

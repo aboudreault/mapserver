@@ -290,12 +290,12 @@ static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer,
   Handle<ObjectTemplate> shape_templ = ObjectTemplate::New();
   shape_templ->SetInternalFieldCount(layer ? 2 : 1);
 
-  SET_GETTER(shape_templ, "numvalues", shapeObj, int, numvalues, Integer);
-  SET_GETTER(shape_templ, "numlines", shapeObj, int, numlines, Integer);
-  SET_GETTER(shape_templ, "index", shapeObj, long, index, Integer);
-  SET_GETTER(shape_templ, "type", shapeObj, int, type, Integer);
-  SET_GETTER(shape_templ, "tileindex", shapeObj, int, tileindex, Integer);
-  SET_ACCESSOR(shape_templ, "classindex", shapeObj, int, classindex, Integer);
+  SET_GETTER_OLD(shape_templ, "numvalues", shapeObj, int, numvalues, Integer);
+  SET_GETTER_OLD(shape_templ, "numlines", shapeObj, int, numlines, Integer);
+  SET_GETTER_OLD(shape_templ, "index", shapeObj, long, index, Integer);
+  SET_GETTER_OLD(shape_templ, "type", shapeObj, int, type, Integer);
+  SET_GETTER_OLD(shape_templ, "tileindex", shapeObj, int, tileindex, Integer);
+  SET_ACCESSOR_OLD(shape_templ, "classindex", shapeObj, int, classindex, Integer);
   SET_TEXT_ACCESSOR(shape_templ, "text", shapeObj, text, String);
 
   shape_templ->Set(String::New("clone"), FunctionTemplate::New(msV8ShapeObjClone));
@@ -437,7 +437,7 @@ static Handle<Object> msV8WrapLineObj(Isolate *isolate, lineObj *line,
   Handle<ObjectTemplate> line_templ = ObjectTemplate::New();
   line_templ->SetInternalFieldCount(1);
 
-  //SET_GETTER(line_templ, "numpoints", lineObj, int, numpoints, Integer);
+  //SET_GETTER_OLD(line_templ, "numpoints", lineObj, int, numpoints, Integer);
   line_templ->SetAccessor(String::New("numpoints"),
                           msV8Getter<lineObj, int, &lineObj::numpoints, Integer>, 0,Handle<Value>(), PROHIBITS_OVERWRITING,
                           ReadOnly);
@@ -508,12 +508,12 @@ static Handle<Object> msV8WrapPointObj(Isolate *isolate, pointObj *point,
   point_templ->Set(String::New("setXY"), FunctionTemplate::New(msV8PointObjSetXY));
   point_templ->Set(String::New("setXYZ"), FunctionTemplate::New(msV8PointObjSetXYZ));
 
-  SET_ACCESSOR(point_templ, "x", pointObj, double, x, Number);
-  SET_ACCESSOR(point_templ, "y", pointObj, double, y, Number);
+  SET_ACCESSOR_OLD(point_templ, "x", pointObj, double, x, Number);
+  SET_ACCESSOR_OLD(point_templ, "y", pointObj, double, y, Number);
 
 #ifdef USE_POINT_Z_M
-  SET_ACCESSOR(point_templ, "z", pointObj, double, z, Number);
-  SET_ACCESSOR(point_templ, "m", pointObj, double, m, Number);
+  SET_ACCESSOR_OLD(point_templ, "z", pointObj, double, z, Number);
+  SET_ACCESSOR_OLD(point_templ, "m", pointObj, double, m, Number);
 #endif
 
   Handle<Object> obj = point_templ->NewInstance();
