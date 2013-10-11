@@ -32,20 +32,39 @@
 #include "mapserver.h"
 #include "v8_mapscript.h"
 
-template <typename T, typename V, V T::*mptr, typename R>
-static Handle<Value> msV8Getter(Local<String> property,
-    const AccessorInfo &info)
+template<typename T>
+template <typename V, V T::*mptr, typename R>
+Handle<Value> V8Object<T>::getter(Local<String> property,
+                                  const AccessorInfo &info)
 {
   Local<Object> self = info.Holder();
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
   void *ptr = wrap->Value();
   T *o = static_cast<T*>(ptr);
+  
   return R::New(o->*mptr);
 }
 
-template <typename T, typename V, V T::*mptr>
-static void msV8Setter(Local<String> property, Local<Value> value,
-    const AccessorInfo &info)
+template<typename T>
+template<char* T::*mptr, typename R>
+Handle<Value> V8Object<T>::getter(Local<String> property,
+                                  const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  T *o = static_cast<T*>(ptr);
+
+  if (o->*mptr == NULL)
+    return R::New("");
+  
+  return R::New(o->*mptr);
+}
+
+template<typename T>
+template<typename V, V T::*mptr>
+void V8Object<T>::setter(Local<String> property, Local<Value> value,
+                         const AccessorInfo &info)
 {
   Local<Object> self = info.Holder();
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
@@ -59,25 +78,97 @@ static void msV8Setter(Local<String> property, Local<Value> value,
 }
 
 template<typename T>
-V8Object<T>::V8Object(T* obj)
-{
-  this->obj = obj;
-  this->obj_template = ObjectTemplate::New();
-  this->obj_template->SetInternalFieldCount(1);
-  ADD_DOUBLE_ACCESSOR("x", x);
-}
-
-template<typename T>
-template <typename V, V T::*mptr, typename R>
-Handle<Value> V8Object<T>::getter(Local<String> property,
-                                  const AccessorInfo &info)
+template<char* T::*mptr>
+void V8Object<T>::setter(Local<String> property, Local<Value> value,
+                         const AccessorInfo &info)
 {
   Local<Object> self = info.Holder();
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
   void *ptr = wrap->Value();
-  T *o = static_cast<T*>(ptr);
+  char *cvalue = static_cast<T*>(ptr)->*mptr;
+
+  if (cvalue)
+    msFree(cvalue);    
+
+  static_cast<T*>(ptr)->*mptr = getStringValue(value);
   
-  return R::New(o->*mptr);
+}
+
+template<typename T>
+char* V8Object<T>::getStringValue(Local<Value> value, const char *fallback)
+{
+  if (value->IsString()) {
+    String::AsciiValue string(value);
+    char *str = (char *) malloc(string.length() + 1);
+    strcpy(str, *string);
+    return str;
+  }
+  char *str = (char *) malloc(strlen(fallback) + 1);
+  strcpy(str, fallback);
+  return str;
+}
+
+template<typename T>
+V8Object<T>::V8Object(T* obj, Handle<Object> parent)
+{
+  this->obj = obj;
+  
+  if (!parent.IsEmpty()) {
+    this->parent = parent;
+  }
+
+  this->obj_template = ObjectTemplate::New();
+  this->obj_template->SetInternalFieldCount(1);
+  makeObjectTemplate(this->obj); 
+}
+
+template<typename T>
+Handle<Object> V8Object<T>::newInstance()
+{
+  Handle<Object> obj = this->func_template->InstanceTemplate()->NewInstance();
+  
+  //  Handle<Object> obj = obj_template->NewInstance();
+  
+  obj->SetInternalField(0, External::New(this->obj));
+  if (!parent.IsEmpty()) {
+    obj->SetHiddenValue(String::New("__parent__"), this->parent);
+  }  
+  //  obj->SetHiddenValue(String::New("__classname__"), this->classname);
+  
+  return obj;
+}
+
+template<typename T>
+void V8Object<T>::setInternalField(Handle<Object> obj, T *p)
+{
+  obj->SetInternalField(0, External::New(p));
+}
+
+template<typename T>
+void V8Object<T>::addFunction(const char* name, InvocationCallback function)
+{
+  this->obj_template->Set(String::New(name),
+                          FunctionTemplate::New(function));
+}
+
+/* Object Factory */
+
+template<typename T>
+void V8Object<T>::makeObjectTemplate(pointObj *point)
+{
+  this->func_template = FunctionTemplate::New(msV8PointObjNew);
+  this->func_template->InstanceTemplate()->SetInternalFieldCount(1);   
+  this->func_template->SetClassName(String::NewSymbol("pointObj"));
+
+  ADD_DOUBLE_ACCESSOR("x", x);
+  ADD_DOUBLE_ACCESSOR("y", y);
+#ifdef USE_POINT_Z_M  
+  ADD_DOUBLE_ACCESSOR("z", z);
+  ADD_DOUBLE_ACCESSOR("m", m);
+#endif
+  
+  addFunction("setXY", msV8PointObjSetXY);
+  addFunction("setXYZ", msV8PointObjSetXYZ);  
 }
 
 template class V8Object<pointObj>;

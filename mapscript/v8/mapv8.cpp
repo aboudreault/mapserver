@@ -32,6 +32,33 @@
 #include <map>
 #include "v8_mapscript.h"
 
+#define SET_TEXT_ACCESSOR(obj_templ, name, obj_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
+                     msV8Getter<obj_type, &obj_type::property, v8_type>, \
+                     msV8Setter<obj_type, &obj_type::property> , \
+                     Handle<Value>(), \
+                     PROHIBITS_OVERWRITING, \
+                     None)
+
+#define SET_GETTER_OLD(obj_templ, name, obj_type, property_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
+                   msV8Getter<obj_type, property_type, &obj_type::property, v8_type>, \
+                   0, \
+                   Handle<Value>(), \
+                   PROHIBITS_OVERWRITING, \
+                   ReadOnly)
+
+#define SET_ACCESSOR_OLD(obj_templ, name, obj_type, property_type, property, v8_type) obj_templ->SetAccessor(String::New(name), \
+                     msV8Getter<obj_type, property_type, &obj_type::property, v8_type>, \
+                     msV8Setter<obj_type, property_type, &obj_type::property>, \
+                     Handle<Value>(), \
+                     PROHIBITS_OVERWRITING, \
+                     None)
+
+static char *msV8GetCString(Local<Value> value, const char *fallback = "");
+static Handle<Object> msV8WrapShapeObj(Isolate *isolate, layerObj *layer,
+                                       shapeObj *shape, Persistent<Object> *po);
+static Handle<Object> msV8WrapLineObj(Isolate *isolate, lineObj *line,
+                                      Handle<Object> parent);
+
 /* MAPSERVER OBJECT WRAPPERS */
 /* should be moved somewhere else if we expose more objects */
 
@@ -112,6 +139,8 @@ static void msV8WeakAttMapCallback(Isolate *isolate, Persistent<Object> *object,
 
 static Handle<Value> msV8ShapeObjNew(const Arguments& args)
 {
+  return msV8PointObjNew(args);
+  
   Local<Object> self = args.Holder();
   shapeObj *shape;
   shape = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
@@ -123,8 +152,8 @@ static Handle<Value> msV8ShapeObjNew(const Arguments& args)
     shape->type = MS_SHAPE_NULL;
   }
 
-  Persistent<Object> persistent_shape;
-  return self;//msV8WrapShapeObj(Isolate::GetCurrent(), NULL, shape, &persistent_shape);  
+  //  Persistent<Object> persistent_shape;
+  //return self;//msV8WrapShapeObj(Isolate::GetCurrent(), NULL, shape, &persistent_shape);  
 }
 
 static Handle<Value> msV8ShapeObjClone(const Arguments& args)
@@ -190,8 +219,9 @@ static Handle<Value> msV8LineObjGetPoint(const Arguments& args)
     ThrowException(String::New("Invalid point index."));
     return Undefined();
   }
-
-  return msV8WrapPointObj(Isolate::GetCurrent(), &line->point[index], self);
+  
+  V8Point p(&line->point[index], self);
+  return p.newInstance();
 }
 
 static Handle<Value> msV8ShapeObjAddLine(const Arguments& args)
@@ -399,7 +429,7 @@ static Handle<Value> msV8LineObjAddXYZ(const Arguments& args)
 static Handle<Value> msV8LineObjAddPoint(const Arguments& args)
 {
   if (args.Length() < 1 || !args[0]->IsObject() ||
-    !args[0]->ToObject()->GetHiddenValue(String::New("__classname__"))->Equals(String::New("pointObj"))) {
+      !args[0]->ToObject()->GetConstructorName()->Equals(String::New("pointObj"))) {
     ThrowException(String::New("Invalid argument"));
     return Undefined();
   }
@@ -453,77 +483,6 @@ static Handle<Object> msV8WrapLineObj(Isolate *isolate, lineObj *line,
   obj->SetHiddenValue(String::New("__parent__"), parent);
   obj->SetHiddenValue(String::New("__classname__"), String::New("lineObj"));
 
-  return obj;
-}
-
-static Handle<Value> msV8PointObjSetXY(const Arguments& args)
-{
-  if (args.Length() < 2 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
-    ThrowException(String::New("Invalid argument"));
-    return Undefined();
-  }
-
-  Local<Object> self = args.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  pointObj *point = static_cast<pointObj*>(ptr);
-
-  point->x = args[0]->NumberValue();
-  point->y = args[1]->NumberValue();
-
-  return Undefined();
-}
-
-static Handle<Value> msV8PointObjSetXYZ(const Arguments& args)
-{
-  if (args.Length() < 3 ||
-      !args[0]->IsNumber() || !args[1]->IsNumber() || !args[2]->IsNumber()) {
-    ThrowException(String::New("Invalid argument"));
-    return Undefined();
-  }
-
-  Local<Object> self = args.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  pointObj *point = static_cast<pointObj*>(ptr);
-
-  point->x = args[0]->NumberValue();
-  point->y = args[1]->NumberValue();
-
-#ifdef USE_POINT_Z_M
-  point->z = args[2]->NumberValue();
-  if (args.Length() > 3 && args[3]->IsNumber()) {
-    point->m = args[3]->NumberValue();
-  }
-#endif
-  return Undefined();
-}
-
-/* Point object wrapper. we can only access line through a shape */
-static Handle<Object> msV8WrapPointObj(Isolate *isolate, pointObj *point,
-                                       Handle<Object> parent)
-{
-  Handle<ObjectTemplate> point_templ = ObjectTemplate::New();
-  point_templ->SetInternalFieldCount(1);
-  point_templ->Set(String::New("setXY"), FunctionTemplate::New(msV8PointObjSetXY));
-  point_templ->Set(String::New("setXYZ"), FunctionTemplate::New(msV8PointObjSetXYZ));
-
-  SET_ACCESSOR_OLD(point_templ, "x", pointObj, double, x, Number);
-  SET_ACCESSOR_OLD(point_templ, "y", pointObj, double, y, Number);
-
-#ifdef USE_POINT_Z_M
-  SET_ACCESSOR_OLD(point_templ, "z", pointObj, double, z, Number);
-  SET_ACCESSOR_OLD(point_templ, "m", pointObj, double, m, Number);
-#endif
-
-  Handle<Object> obj = point_templ->NewInstance();
-  obj->SetInternalField(0, External::New(point));
-  obj->SetHiddenValue(String::New("__parent__"), parent);
-  obj->SetHiddenValue(String::New("__classname__"), String::New("pointObj"));
-
-  V8Object<pointObj> p(point);
-  //p.addDoubleAccessor();
-  
   return obj;
 }
 
