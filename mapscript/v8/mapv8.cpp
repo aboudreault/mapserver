@@ -139,8 +139,6 @@ static void msV8WeakAttMapCallback(Isolate *isolate, Persistent<Object> *object,
 
 static Handle<Value> msV8ShapeObjNew(const Arguments& args)
 {
-  return msV8PointObjNew(args);
-  
   Local<Object> self = args.Holder();
   shapeObj *shape;
   shape = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
@@ -227,7 +225,7 @@ static Handle<Value> msV8LineObjGetPoint(const Arguments& args)
 static Handle<Value> msV8ShapeObjAddLine(const Arguments& args)
 {
   if (args.Length() < 1 || !args[0]->IsObject() ||
-    !args[0]->ToObject()->GetHiddenValue(String::New("__classname__"))->Equals(String::New("lineObj"))) {
+      !args[0]->ToObject()->GetConstructorName()->Equals(String::New("lineObj"))) {
     ThrowException(String::New("Invalid argument"));
     return Undefined();
   }
@@ -725,12 +723,10 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
   Handle<Object> shape_ = msV8WrapShapeObj(v8context->isolate, layer, shape, NULL);
   global->Set(String::New("shape"), shape_);
 
-  Handle<FunctionTemplate> tpl =  FunctionTemplate::New(msV8ShapeObjNew);
-  tpl->SetClassName(String::NewSymbol("shapeObj"));
-  tpl->InstanceTemplate()->SetInternalFieldCount(1);  
-  tpl->PrototypeTemplate()->Set(String::NewSymbol("test"), String::New("teee"));
-  Handle<Function> constructor = tpl->GetFunction();
-  global->Set(String::New("shapeObj"), constructor);
+  /* constructor */
+  //bad function..
+  V8Point p(NULL);
+  global->Set(String::New("pointObj"), p.getConstructor());
               
   Handle<Value> result = msV8ExecuteScript(filename);
   if (!result.IsEmpty() && !result->IsUndefined()) {

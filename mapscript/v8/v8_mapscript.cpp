@@ -125,14 +125,17 @@ V8Object<T>::V8Object(T* obj, Handle<Object> parent)
 template<typename T>
 Handle<Object> V8Object<T>::newInstance()
 {
-  Handle<Object> obj = this->func_template->InstanceTemplate()->NewInstance();
+  Handle<String> key = String::New("__obj__");
   
-  //  Handle<Object> obj = obj_template->NewInstance();
-  
+  this->func_template->InstanceTemplate()->Set(key, True());
+  Handle<Object> obj = this->func_template->GetFunction()->NewInstance();
+
   obj->SetInternalField(0, External::New(this->obj));
+  obj->Delete(key);
+  
   if (!parent.IsEmpty()) {
     obj->SetHiddenValue(String::New("__parent__"), this->parent);
-  }  
+  }
   //  obj->SetHiddenValue(String::New("__classname__"), this->classname);
   
   return obj;
@@ -147,7 +150,7 @@ void V8Object<T>::setInternalField(Handle<Object> obj, T *p)
 template<typename T>
 void V8Object<T>::addFunction(const char* name, InvocationCallback function)
 {
-  this->obj_template->Set(String::New(name),
+  this->func_template->InstanceTemplate()->Set(String::New(name),
                           FunctionTemplate::New(function));
 }
 
@@ -169,6 +172,12 @@ void V8Object<T>::makeObjectTemplate(pointObj *point)
   
   addFunction("setXY", msV8PointObjSetXY);
   addFunction("setXYZ", msV8PointObjSetXYZ);  
+}
+
+template <typename T>
+Handle<Function> V8Object<T>::getConstructor()
+{
+  return this->func_template->GetFunction();
 }
 
 template class V8Object<pointObj>;

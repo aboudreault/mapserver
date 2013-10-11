@@ -53,6 +53,7 @@ using v8::Integer;
 using v8::Number;
 using v8::Undefined;
 using v8::Null;
+using v8::True;
 using v8::Function;
 using v8::FunctionTemplate;
 using v8::ObjectTemplate;
@@ -141,7 +142,7 @@ class V8Object
 
   Handle<Object> newInstance();
 
-  static void getConstructor();
+  Handle<Function> getConstructor();
   static void setInternalField(Handle<Object> obj, T *p);
 };
 
