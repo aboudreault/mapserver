@@ -32,6 +32,63 @@
 #include "mapserver.h"
 #include "v8_mapscript.h"
 
+template <typename T, typename V, V T::*mptr, typename R>
+Handle<Value> getter(Local<String> property,
+                     const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  T *o = static_cast<T*>(ptr);
+  
+  return R::New(o->*mptr);
+}
+
+template<typename T, char* T::*mptr, typename R>
+Handle<Value> getter(Local<String> property,
+                     const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  T *o = static_cast<T*>(ptr);
+
+  if (o->*mptr == NULL)
+    return R::New("");
+  
+  return R::New(o->*mptr);
+}
+
+template<typename T, typename V, V T::*mptr>
+void setter(Local<String> property, Local<Value> value,
+            const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  if (value->IsInt32()) {
+    static_cast<T*>(ptr)->*mptr = value->Int32Value();
+  }
+  else if (value->IsNumber()) {
+    static_cast<T*>(ptr)->*mptr = value->NumberValue();
+  }
+}
+
+template<typename T, char* T::*mptr>
+void setter(Local<String> property, Local<Value> value,
+            const AccessorInfo &info)
+{
+  Local<Object> self = info.Holder();
+  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+  void *ptr = wrap->Value();
+  char *cvalue = static_cast<T*>(ptr)->*mptr;
+
+  if (cvalue)
+    msFree(cvalue);    
+
+  static_cast<T*>(ptr)->*mptr = V8Object<T>::getStringValue(value);  
+}
+
 template<typename T>
 template <typename V, V T::*mptr, typename R>
 Handle<Value> V8Object<T>::getter(Local<String> property,
@@ -108,6 +165,61 @@ char* V8Object<T>::getStringValue(Local<Value> value, const char *fallback)
   return str;
 }
 
+// soo ugly
+template<typename T>
+Handle<FunctionTemplate> makeObjectTemplate(pointObj *point)
+{
+  Handle<FunctionTemplate> func_template = FunctionTemplate::New(msV8PointObjNew);
+  func_template->InstanceTemplate()->SetInternalFieldCount(1);   
+  func_template->SetClassName(String::NewSymbol("pointObj"));
+
+  ADD_DOUBLE_ACCESSOR("x", x);
+  ADD_DOUBLE_ACCESSOR("y", y);
+#ifdef USE_POINT_Z_M  
+  ADD_DOUBLE_ACCESSOR("z", z);
+  ADD_DOUBLE_ACCESSOR("m", m);
+#endif
+  
+  ADD_FUNCTION("setXY", msV8PointObjSetXY);
+  ADD_FUNCTION("setXYZ", msV8PointObjSetXYZ);
+
+  return func_template;
+}
+
+template<typename T>
+Handle<FunctionTemplate> makeObjectTemplate(lineObj *line)
+{
+  Handle<FunctionTemplate> func_template = FunctionTemplate::New(msV8LineObjNew);
+  func_template->InstanceTemplate()->SetInternalFieldCount(1);   
+  func_template->SetClassName(String::NewSymbol("lineObj"));
+
+  ADD_INTEGER_GETTER("numpoints", numpoints);
+
+  ADD_FUNCTION("point", msV8LineObjGetPoint);
+  ADD_FUNCTION("addXY", msV8LineObjAddXY);
+  ADD_FUNCTION("addXYZ", msV8LineObjAddXYZ);
+  ADD_FUNCTION("add", msV8LineObjAddPoint);
+
+  return func_template;  
+}
+
+template<typename T>
+Handle<FunctionTemplate> makeObjectTemplate(shapeObj *shape)
+{
+  Handle<FunctionTemplate> func_template = FunctionTemplate::New(msV8LineObjNew);
+  func_template->InstanceTemplate()->SetInternalFieldCount(1);   
+  func_template->SetClassName(String::NewSymbol("shapeObj"));
+
+  // ADD_DOUBLE_GETTER("numpoints", numpoints);
+
+  // ADD_FUNCTION("point", msV8LineObjGetPoint);
+  // ADD_FUNCTION("addXY", msV8LineObjAddXY);
+  // ADD_FUNCTION("addXYZ", msV8LineObjAddXYZ);
+  // ADD_FUNCTION("add", msV8LineObjAddPoint);
+
+  return func_template;  
+}
+
 template<typename T>
 V8Object<T>::V8Object(T* obj, Handle<Object> parent)
 {
@@ -119,7 +231,7 @@ V8Object<T>::V8Object(T* obj, Handle<Object> parent)
 
   this->obj_template = ObjectTemplate::New();
   this->obj_template->SetInternalFieldCount(1);
-  makeObjectTemplate(this->obj); 
+  this->func_template = makeObjectTemplate<T>(this->obj);
 }
 
 template<typename T>
@@ -154,26 +266,6 @@ void V8Object<T>::addFunction(const char* name, InvocationCallback function)
                           FunctionTemplate::New(function));
 }
 
-/* Object Factory */
-
-template<typename T>
-void V8Object<T>::makeObjectTemplate(pointObj *point)
-{
-  this->func_template = FunctionTemplate::New(msV8PointObjNew);
-  this->func_template->InstanceTemplate()->SetInternalFieldCount(1);   
-  this->func_template->SetClassName(String::NewSymbol("pointObj"));
-
-  ADD_DOUBLE_ACCESSOR("x", x);
-  ADD_DOUBLE_ACCESSOR("y", y);
-#ifdef USE_POINT_Z_M  
-  ADD_DOUBLE_ACCESSOR("z", z);
-  ADD_DOUBLE_ACCESSOR("m", m);
-#endif
-  
-  addFunction("setXY", msV8PointObjSetXY);
-  addFunction("setXYZ", msV8PointObjSetXYZ);  
-}
-
 template <typename T>
 Handle<Function> V8Object<T>::getConstructor()
 {
@@ -181,5 +273,7 @@ Handle<Function> V8Object<T>::getConstructor()
 }
 
 template class V8Object<pointObj>;
+template class V8Object<lineObj>;
+template class V8Object<shapeObj>;
 
 #endif

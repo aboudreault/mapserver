@@ -82,8 +82,8 @@ public:
 
 /* those getter/setter cannot be function due to c++ templating
    limitation. another solution could be used if/when needed. */
-#define ADD_GETTER(name, property_type, property, v8_type) this->func_template->InstanceTemplate()->SetAccessor(String::New(name), \
-                   msV8Getter<T, property_type, &T::property, v8_type>, \
+#define ADD_GETTER(name, property_type, property, v8_type) func_template->InstanceTemplate()->SetAccessor(String::New(name), \
+                                                                                                          getter<T, property_type, &T::property, v8_type>, \
                    0, \
                    Handle<Value>(), \
                    PROHIBITS_OVERWRITING, \
@@ -93,9 +93,9 @@ public:
 #define ADD_INTEGER_GETTER(name, property) ADD_GETTER(name, int, property, Integer)
 #define ADD_STRING_GETTER(name, property) ADD_GETTER(name, char*, property, String)
 
-#define ADD_ACCESSOR(name, property_type, property, v8_type) this->func_template->InstanceTemplate()->SetAccessor(String::New(name), \
-                     getter<property_type, &T::property, v8_type>, \
-                     setter<property_type, &T::property>, \
+#define ADD_ACCESSOR(name, property_type, property, v8_type) func_template->InstanceTemplate()->SetAccessor(String::New(name), \
+                                                                                                            getter<T, property_type, &T::property, v8_type>, \
+                                                                                                            setter<T, property_type, &T::property>, \
                      Handle<Value>(), \
                      PROHIBITS_OVERWRITING, \
                      None)
@@ -103,6 +103,8 @@ public:
 #define ADD_DOUBLE_ACCESSOR(name, property) ADD_ACCESSOR(name, double, property, Number)
 #define ADD_INTEGER_ACCESSOR(name, property) ADD_ACCESSOR(name, double, property, Integer)
 #define ADD_STRING_ACCESSOR(name, property) ADD_ACCESSOR(name, char*, property, String)
+
+#define ADD_FUNCTION(name, function)  func_template->InstanceTemplate()->Set(String::New(name), FunctionTemplate::New(function));
 
 template<typename T>
 class V8Object
@@ -125,7 +127,6 @@ class V8Object
                 const AccessorInfo &info);
 
   void addFunction(const char* name, InvocationCallback function);
-  void makeObjectTemplate(pointObj *point);
   
  protected:
   T* obj;
@@ -147,5 +148,7 @@ class V8Object
 };
 
 typedef V8Object<pointObj> V8Point;
+typedef V8Object<lineObj> V8Line;
+typedef V8Object<shapeObj> V8Shape;
 
 #endif

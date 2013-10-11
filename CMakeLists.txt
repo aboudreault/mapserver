@@ -173,7 +173,8 @@ renderers/agg/src/clipper.cpp
 include_directories(renderers/agg/include)
 
 set(v8_SOURCES
-  mapscript/v8/point.cpp  
+  mapscript/v8/point.cpp
+  mapscript/v8/line.cpp    
   mapscript/v8/v8_mapscript.cpp
   mapscript/v8/mapv8.cpp
 )

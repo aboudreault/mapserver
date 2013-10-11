@@ -57,7 +57,7 @@ Handle<Value> msV8PointObjNew(const Arguments& args)
     V8Point::setInternalField(self, p);
     Persistent<Object> pobj;
     pobj.Reset(Isolate::GetCurrent(), self);
-    pobj.MakeWeak(p, msV8PointObjDestroy);    
+    pobj.MakeWeak(p, msV8PointObjDestroy);   
   }
 
   return self;  
