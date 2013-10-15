@@ -46,7 +46,7 @@ Handle<Value> getter(Local<String> property,
 
 template<typename T, char* T::*mptr, typename R>
 Handle<Value> getter(Local<String> property,
-                     const AccessorInfo &info)
+                                        const AccessorInfo &info)
 {
   Local<Object> self = info.Holder();
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
@@ -89,67 +89,67 @@ void setter(Local<String> property, Local<Value> value,
   static_cast<T*>(ptr)->*mptr = V8Object<T>::getStringValue(value);  
 }
 
-template<typename T>
-template <typename V, V T::*mptr, typename R>
-Handle<Value> V8Object<T>::getter(Local<String> property,
-                                  const AccessorInfo &info)
-{
-  Local<Object> self = info.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  T *o = static_cast<T*>(ptr);
+// template<typename T>
+// template <typename V, V T::*mptr, typename R>
+// Handle<Value> V8Object<T>::getter(Local<String> property,
+//                                   const AccessorInfo &info)
+// {
+//   Local<Object> self = info.Holder();
+//   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+//   void *ptr = wrap->Value();
+//   T *o = static_cast<T*>(ptr);
   
-  return R::New(o->*mptr);
-}
+//   return R::New(o->*mptr);
+// }
 
-template<typename T>
-template<char* T::*mptr, typename R>
-Handle<Value> V8Object<T>::getter(Local<String> property,
-                                  const AccessorInfo &info)
-{
-  Local<Object> self = info.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  T *o = static_cast<T*>(ptr);
+// template<typename T>
+// template<char* T::*mptr, typename R>
+// Handle<Value> V8Object<T>::getter(Local<String> property,
+//                                   const AccessorInfo &info)
+// {
+//   Local<Object> self = info.Holder();
+//   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+//   void *ptr = wrap->Value();
+//   T *o = static_cast<T*>(ptr);
 
-  if (o->*mptr == NULL)
-    return R::New("");
+//   if (o->*mptr == NULL)
+//     return R::New("");
   
-  return R::New(o->*mptr);
-}
+//   return R::New(o->*mptr);
+// }
 
-template<typename T>
-template<typename V, V T::*mptr>
-void V8Object<T>::setter(Local<String> property, Local<Value> value,
-                         const AccessorInfo &info)
-{
-  Local<Object> self = info.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  if (value->IsInt32()) {
-    static_cast<T*>(ptr)->*mptr = value->Int32Value();
-  }
-  else if (value->IsNumber()) {
-    static_cast<T*>(ptr)->*mptr = value->NumberValue();
-  }
-}
+// template<typename T>
+// template<typename V, V T::*mptr>
+// void V8Object<T>::setter(Local<String> property, Local<Value> value,
+//                          const AccessorInfo &info)
+// {
+//   Local<Object> self = info.Holder();
+//   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+//   void *ptr = wrap->Value();
+//   if (value->IsInt32()) {
+//     static_cast<T*>(ptr)->*mptr = value->Int32Value();
+//   }
+//   else if (value->IsNumber()) {
+//     static_cast<T*>(ptr)->*mptr = value->NumberValue();
+//   }
+// }
 
-template<typename T>
-template<char* T::*mptr>
-void V8Object<T>::setter(Local<String> property, Local<Value> value,
-                         const AccessorInfo &info)
-{
-  Local<Object> self = info.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  char *cvalue = static_cast<T*>(ptr)->*mptr;
+// template<typename T>
+// template<char* T::*mptr>
+// void V8Object<T>::setter(Local<String> property, Local<Value> value,
+//                          const AccessorInfo &info)
+// {
+//   Local<Object> self = info.Holder();
+//   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
+//   void *ptr = wrap->Value();
+//   char *cvalue = static_cast<T*>(ptr)->*mptr;
 
-  if (cvalue)
-    msFree(cvalue);    
+//   if (cvalue)
+//     msFree(cvalue);    
 
-  static_cast<T*>(ptr)->*mptr = getStringValue(value);
+//   static_cast<T*>(ptr)->*mptr = getStringValue(value);
   
-}
+// }
 
 template<typename T>
 char* V8Object<T>::getStringValue(Local<Value> value, const char *fallback)
@@ -206,16 +206,22 @@ Handle<FunctionTemplate> makeObjectTemplate(lineObj *line)
 template<typename T>
 Handle<FunctionTemplate> makeObjectTemplate(shapeObj *shape)
 {
-  Handle<FunctionTemplate> func_template = FunctionTemplate::New(msV8LineObjNew);
+  Handle<FunctionTemplate> func_template = FunctionTemplate::New(msV8ShapeObjNew);
   func_template->InstanceTemplate()->SetInternalFieldCount(1);   
   func_template->SetClassName(String::NewSymbol("shapeObj"));
 
-  // ADD_DOUBLE_GETTER("numpoints", numpoints);
-
-  // ADD_FUNCTION("point", msV8LineObjGetPoint);
-  // ADD_FUNCTION("addXY", msV8LineObjAddXY);
-  // ADD_FUNCTION("addXYZ", msV8LineObjAddXYZ);
-  // ADD_FUNCTION("add", msV8LineObjAddPoint);
+  ADD_INTEGER_GETTER("numvalues", numvalues);
+  ADD_INTEGER_GETTER("numlines", numlines);  
+  ADD_LONG_GETTER("index", index);
+  ADD_INTEGER_GETTER("type", type);
+  ADD_INTEGER_GETTER("tileindex", tileindex);
+  ADD_INTEGER_GETTER("classindex", classindex);
+  ADD_STRING_ACCESSOR("text", text);
+  
+  ADD_FUNCTION("clone", msV8ShapeObjClone);
+  ADD_FUNCTION("line", msV8ShapeObjGetLine);
+  ADD_FUNCTION("add", msV8ShapeObjAddLine);
+  ADD_FUNCTION("setGeometry", msV8ShapeObjSetGeometry);
 
   return func_template;  
 }
@@ -238,18 +244,21 @@ template<typename T>
 Handle<Object> V8Object<T>::newInstance()
 {
   Handle<String> key = String::New("__obj__");
-  
-  this->func_template->InstanceTemplate()->Set(key, True());
+  Handle<String> key_parent = String::New("__parent__");
+  Handle<External> external_obj = External::New(this->obj);
+    
+  this->func_template->InstanceTemplate()->Set(key, external_obj);
+  if (!parent.IsEmpty())
+    this->func_template->InstanceTemplate()->Set(key_parent, parent);  
   Handle<Object> obj = this->func_template->GetFunction()->NewInstance();
 
-  obj->SetInternalField(0, External::New(this->obj));
+  obj->SetInternalField(0, external_obj);
   obj->Delete(key);
   
   if (!parent.IsEmpty()) {
     obj->SetHiddenValue(String::New("__parent__"), this->parent);
   }
-  //  obj->SetHiddenValue(String::New("__classname__"), this->classname);
-  
+
   return obj;
 }
 

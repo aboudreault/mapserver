@@ -83,7 +83,7 @@ public:
 /* those getter/setter cannot be function due to c++ templating
    limitation. another solution could be used if/when needed. */
 #define ADD_GETTER(name, property_type, property, v8_type) func_template->InstanceTemplate()->SetAccessor(String::New(name), \
-                                                                                                          getter<T, property_type, &T::property, v8_type>, \
+                   getter<T, property_type, &T::property, v8_type>, \
                    0, \
                    Handle<Value>(), \
                    PROHIBITS_OVERWRITING, \
@@ -91,18 +91,30 @@ public:
 
 #define ADD_DOUBLE_GETTER(name, property) ADD_GETTER(name, double, property, Number)
 #define ADD_INTEGER_GETTER(name, property) ADD_GETTER(name, int, property, Integer)
-#define ADD_STRING_GETTER(name, property) ADD_GETTER(name, char*, property, String)
+#define ADD_LONG_GETTER(name, property) ADD_GETTER(name, long, property, Integer)
+#define ADD_STRING_GETTER(name, property) func_template->InstanceTemplate()->SetAccessor(String::New(name), \
+                   getter<T, &T::property, String>, \
+                   0, \
+                   Handle<Value>(), \
+                   PROHIBITS_OVERWRITING, \
+                   ReadOnly)
 
 #define ADD_ACCESSOR(name, property_type, property, v8_type) func_template->InstanceTemplate()->SetAccessor(String::New(name), \
-                                                                                                            getter<T, property_type, &T::property, v8_type>, \
-                                                                                                            setter<T, property_type, &T::property>, \
+                     getter<T, property_type, &T::property, v8_type>, \
+                     setter<T, property_type, &T::property>, \
                      Handle<Value>(), \
                      PROHIBITS_OVERWRITING, \
                      None)
 
 #define ADD_DOUBLE_ACCESSOR(name, property) ADD_ACCESSOR(name, double, property, Number)
-#define ADD_INTEGER_ACCESSOR(name, property) ADD_ACCESSOR(name, double, property, Integer)
-#define ADD_STRING_ACCESSOR(name, property) ADD_ACCESSOR(name, char*, property, String)
+#define ADD_INTEGER_ACCESSOR(name, property) ADD_ACCESSOR(name, int, property, Integer)
+#define ADD_LONG_ACCESSOR(name, property) ADD_ACCESSOR(name, long, property, Integer)
+#define ADD_STRING_ACCESSOR(name, property) func_template->InstanceTemplate()->SetAccessor(String::New(name), \
+                     getter<T, &T::property, String>, \
+                     setter<T, &T::property>, \
+                     Handle<Value>(), \
+                     PROHIBITS_OVERWRITING, \
+                     None)
 
 #define ADD_FUNCTION(name, function)  func_template->InstanceTemplate()->Set(String::New(name), FunctionTemplate::New(function));
 
@@ -111,20 +123,20 @@ class V8Object
 {
  private:
   /* generic getter/setter */
-  template <typename V, V T::*mptr, typename R>
-    static Handle<Value> getter(Local<String> property,
-                                const AccessorInfo &info);
-  template<typename V, V T::*mptr>
-    static void setter(Local<String> property, Local<Value> value,
-                       const AccessorInfo &info);
+  /* template <typename V, V T::*mptr, typename R> */
+  /*   static Handle<Value> getter(Local<String> property, */
+  /*                               const AccessorInfo &info); */
+  /* template<typename V, V T::*mptr> */
+  /*   static void setter(Local<String> property, Local<Value> value, */
+  /*                      const AccessorInfo &info); */
 
-  /* specialized getter/setter for char* */
-  template <char* T::*mptr, typename R>
-    static Handle<Value> getter(Local<String> property,
-                                const AccessorInfo &info);
-  template<char* T::*mptr>
-    void setter(Local<String> property, Local<Value> value,
-                const AccessorInfo &info);
+  /* /\* specialized getter/setter for char* *\/ */
+  /* template <char* T::*mptr, typename R> */
+  /*   static Handle<Value> getter(Local<String> property, */
+  /*                               const AccessorInfo &info); */
+  /* template<char* T::*mptr> */
+  /*   void setter(Local<String> property, Local<Value> value, */
+  /*               const AccessorInfo &info); */
 
   void addFunction(const char* name, InvocationCallback function);
   
@@ -136,7 +148,6 @@ class V8Object
   Handle<Object> value; /* v8 value */
   Handle<FunctionTemplate> func_template;
 
-  static char *getStringValue(Local<Value> value, const char *fallback="");
   
  public: 
   V8Object(T* obj, Handle<Object> parent = Handle<Object>());
@@ -145,6 +156,7 @@ class V8Object
 
   Handle<Function> getConstructor();
   static void setInternalField(Handle<Object> obj, T *p);
+  static char *getStringValue(Local<Value> value, const char *fallback="");
 };
 
 typedef V8Object<pointObj> V8Point;

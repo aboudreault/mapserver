@@ -32,8 +32,11 @@
 #include <v8.h>
 
 using v8::Handle;
+using v8::Local;
 using v8::Value;
+using v8::String;
 using v8::Arguments;
+using v8::AccessorInfo;
 
 /* pointObj */
 Handle<Value> msV8PointObjNew(const Arguments& args);
@@ -45,5 +48,17 @@ Handle<Value> msV8LineObjAddPoint(const Arguments& args);
 Handle<Value> msV8LineObjAddXYZ(const Arguments& args);
 Handle<Value> msV8LineObjAddXY(const Arguments& args);
 Handle<Value> msV8LineObjGetPoint(const Arguments& args);
+
+
+Handle<Value> msV8ShapeObjNew(const Arguments& args);
+Handle<Value> msV8ShapeObjClone(const Arguments& args);
+Handle<Value> msV8ShapeObjGetLine(const Arguments& args);
+Handle<Value> msV8ShapeObjAddLine(const Arguments& args);
+Handle<Value> msV8ShapeObjGetValue(Local<String> name,
+                                   const AccessorInfo &info);
+Handle<Value> msV8ShapeObjSetValue(Local<String> name,
+                                   Local<Value> value,
+                                   const AccessorInfo &info);
+Handle<Value> msV8ShapeObjSetGeometry(const Arguments& args);
 
 #endif
