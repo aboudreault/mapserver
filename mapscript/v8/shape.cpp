@@ -232,18 +232,32 @@ Handle<Value> msV8ShapeObjSetValue(Local<String> name,
 
 Handle<Value> msV8ShapeObjSetGeometry(const Arguments& args)
 {
+  if (args.Length() < 1 || !args[0]->IsObject() ||
+      !args[0]->ToObject()->GetConstructorName()->Equals(String::New("shapeObj"))) {
+    ThrowException(String::New("Invalid argument"));
+    return Undefined();
+  }
+  
   Local<Object> self = args.Holder();
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
   void *ptr = wrap->Value();
   shapeObj *shape = static_cast<shapeObj*>(ptr);
+  wrap = Local<External>::Cast(args[0]->ToObject()->GetInternalField(0));
+  ptr = wrap->Value();
+  shapeObj *new_shape = static_cast<shapeObj*>(ptr);
 
-  for (int c = 0; c < shape->numlines; c++) {
-    free(shape->line[c].point);
+  /* clean current shape */
+  for (int i = 0; i < shape->numlines; i++) {
+    free(shape->line[i].point);
   }
   if (shape->line) free(shape->line);
   shape->line = NULL;
   shape->numlines = 0;
 
+  for (int i = 0; i < new_shape->numlines; i++) {
+    msAddLine(shape, &(new_shape->line[i]));
+  }
+  
   return Undefined();
 }
 
