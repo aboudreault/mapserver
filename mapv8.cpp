@@ -29,7 +29,7 @@
 #include "mapserver-config.h"
 #ifdef USE_V8_MAPSCRIPT
 
-#include <map>
+#include "mapserver.h"
 #include "v8_mapscript.h"
 
 /* Handler for Javascript Exceptions. Not exposed to JavaScript, used internally.
@@ -275,4 +275,59 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
   return NULL;
 }
 
+/* for geomtransform, we don't have the mapObj */
+shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
+{
+  Isolate *isolate = Isolate::GetCurrent();
+  V8Context *v8context = (V8Context*)isolate->GetData();
+  
+  if (*filename == '\0') {
+    msSetError(MS_V8ERR, "Invalid javascript filename: \"%s\".", "msGeomTransformShape()", filename);
+    return NULL;
+  }
+
+  HandleScope handle_scope(v8context->isolate);
+  /* execution context */
+  Local<Context> context = Local<Context>::New(v8context->isolate, v8context->context);
+  Context::Scope context_scope(context);
+  Handle<Object> global = context->Global();
+
+  /* we don't need this, since the shape object will be free by MapServer */
+  /* Persistent<Object> persistent_shape; */
+  // Handle<ObjectTemplate> layer_obj_templ = ObjectTemplate::New();
+  // layer_obj_templ->SetInternalFieldCount(1);
+  // Handle<Object> layer_obj = layer_obj_templ->NewInstance();
+  // layer_obj->SetInternalField(0, External::New(layer));   
+  V8Shape shape_(shape);
+  global->Set(String::New("shape"), shape_.newInstance());
+
+  /* constructor */
+  //bad function..
+  V8Point p(NULL);
+  global->Set(String::New("pointObj"), p.getConstructor());
+  V8Line l(NULL);
+  global->Set(String::New("lineObj"), l.getConstructor());
+  V8Shape s(NULL);
+  global->Set(String::New("shapeObj"), s.getConstructor());
+  
+  Handle<Value> result = msV8ExecuteScript(filename);
+  if (!result.IsEmpty() && result->IsObject()) {
+    Local<External> wrap = Local<External>::Cast(result->ToObject()->GetInternalField(0));
+    void *ptr = wrap->Value();
+    shapeObj *new_shape = static_cast<shapeObj*>(ptr);
+    if (shape == new_shape) {
+      new_shape = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
+      msInitShape(new_shape);
+      msCopyShape(shape, new_shape);
+      return new_shape;
+    }
+    else
+    {
+      return new_shape;
+    }
+  }
+  
+  return NULL;
+}
+                             
 #endif /* USE_V8_MAPSCRIPT */

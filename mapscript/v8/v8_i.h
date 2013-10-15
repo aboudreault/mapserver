@@ -26,6 +26,9 @@
  * DEALINGS IN THE SOFTWARE.
  **********************************************************************/
 
+#ifndef V8_I_H
+#define V8_I_H
+
 #include "mapserver-config.h"
 #ifdef USE_V8_MAPSCRIPT
 
@@ -60,5 +63,7 @@ Handle<Value> msV8ShapeObjSetValue(Local<String> name,
                                    Local<Value> value,
                                    const AccessorInfo &info);
 Handle<Value> msV8ShapeObjSetGeometry(const Arguments& args);
+
+#endif
 
 #endif

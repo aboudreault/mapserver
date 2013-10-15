@@ -26,14 +26,17 @@
  * DEALINGS IN THE SOFTWARE.
  **********************************************************************/
 
+#ifndef V8_MAPSCRIPT_H
+#define V8_MAPSCRIPT_H
+
 #include "mapserver-config.h"
 #ifdef USE_V8_MAPSCRIPT
 
 #include "mapserver.h"
+#include <v8.h>
 #include <string>
 #include <stack>
 #include <map>
-#include <v8.h>
 #include "v8_i.h"
 
 using std::string;
@@ -122,22 +125,6 @@ template<typename T>
 class V8Object
 {
  private:
-  /* generic getter/setter */
-  /* template <typename V, V T::*mptr, typename R> */
-  /*   static Handle<Value> getter(Local<String> property, */
-  /*                               const AccessorInfo &info); */
-  /* template<typename V, V T::*mptr> */
-  /*   static void setter(Local<String> property, Local<Value> value, */
-  /*                      const AccessorInfo &info); */
-
-  /* /\* specialized getter/setter for char* *\/ */
-  /* template <char* T::*mptr, typename R> */
-  /*   static Handle<Value> getter(Local<String> property, */
-  /*                               const AccessorInfo &info); */
-  /* template<char* T::*mptr> */
-  /*   void setter(Local<String> property, Local<Value> value, */
-  /*               const AccessorInfo &info); */
-
   void addFunction(const char* name, InvocationCallback function);
   
  protected:
@@ -162,5 +149,7 @@ class V8Object
 typedef V8Object<pointObj> V8Point;
 typedef V8Object<lineObj> V8Line;
 typedef V8Object<shapeObj> V8Shape;
+
+#endif
 
 #endif

@@ -29,7 +29,6 @@
 #include "mapserver-config.h"
 #ifdef USE_V8_MAPSCRIPT
 
-#include "mapserver.h"
 #include "v8_mapscript.h"
 
 static void msV8PointObjDestroy(Isolate *isolate, Persistent<Object> *object,

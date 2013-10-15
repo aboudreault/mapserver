@@ -221,8 +221,19 @@ int msDrawTransformedShape(mapObj *map, imageObj *image, shapeObj *shape, styleO
 int msGeomTransformShape(mapObj *map, layerObj *layer, shapeObj *shape)
 {
   int i;
-  expressionObj *e =  &layer->_geomtransform;
-  
+  expressionObj *e =  &layer->_geomtransform;  
+
+#ifdef USE_V8_MAPSCRIPT
+  if (!map->v8context) {
+    msV8CreateContext(map);
+    if (!map->v8context)
+    {
+      msSetError(MS_V8ERR, "Unable to create v8 context.", "msGeomTransformShape()");
+      return MS_FAILURE;
+    }
+  }
+#endif
+ 
   switch(e->type) {
     case MS_GEOMTRANSFORM_EXPRESSION: {
       int status;
