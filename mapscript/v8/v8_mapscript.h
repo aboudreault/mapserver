@@ -41,37 +41,12 @@
 #include "v8_object_wrap.hpp"
 #include "point.hpp"
 
+using namespace v8;
+
 using std::string;
 using std::stack;
 using std::map;
-using v8::Isolate;
-using v8::Context;
-using v8::Persistent;
-using v8::HandleScope;
-using v8::Handle;
-using v8::Script;
-using v8::Local;
-using v8::Object;
-using v8::Value;
-using v8::String;
-using v8::Integer;
-using v8::Number;
-using v8::Undefined;
-using v8::Null;
-using v8::True;
-using v8::Function;
-using v8::FunctionTemplate;
-using v8::ObjectTemplate;
-using v8::AccessorInfo;
-using v8::None;
-using v8::ReadOnly;
-using v8::PROHIBITS_OVERWRITING;
-using v8::External;
-using v8::Arguments;
-using v8::TryCatch;
-using v8::Message;
-using v8::ThrowException;
-using v8::InvocationCallback;
+//using v8::internal::Arguments;
 
 class V8Context
 {

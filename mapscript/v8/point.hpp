@@ -38,7 +38,7 @@ class Point: public ObjectWrap
 public:
   static Persistent<FunctionTemplate> constructor;
   static void Initialize(Handle<Object> target);
-  static Handle<Value> New(const Arguments &args);
+  static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   Point(pointObj *p);
 private:

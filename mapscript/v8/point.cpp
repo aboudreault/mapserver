@@ -62,7 +62,7 @@ static void msV8PointObjDestroy(Isolate *isolate, Persistent<Object> *object,
   object->Clear();
 }
 
-Handle<Value> Point::New(const Arguments& args)
+void Point::New(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
   HandleScope scope;
 
@@ -87,8 +87,6 @@ Handle<Value> Point::New(const Arguments& args)
     Point *point = new Point(p);
     point->Wrap(args.This());
   }
-  
-  return args.This();
 }
     
 Point::Point(pointObj *p):

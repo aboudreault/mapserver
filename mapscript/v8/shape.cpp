@@ -180,8 +180,8 @@ Handle<Value> msV8ShapeObjAddLine(const Arguments& args)
   return Undefined();
 }
 
-Handle<Value> msV8ShapeObjGetValue(Local<String> name,
-                                   const AccessorInfo &info)
+void msV8ShapeObjGetValue(Local<String> name,
+                          const PropertyCallbackInfo<Value> &info)
 {
   Local<Object> self = info.Holder();
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
@@ -195,15 +195,15 @@ Handle<Value> msV8ShapeObjGetValue(Local<String> name,
   string key = string(*utf8_value);
   map<string, int>::iterator iter = indexes->find(key);
 
-  if (iter == indexes->end()) return Handle<Value>();
-
-  const int &index = (*iter).second;
-  return String::New(values[index]);
+  if (iter != indexes->end()) {
+    const int &index = (*iter).second;
+    info.GetReturnValue().Set(String::New(values[index]));
+  }
 }
 
-Handle<Value> msV8ShapeObjSetValue(Local<String> name,
-                                   Local<Value> value,
-                                   const AccessorInfo &info)
+void msV8ShapeObjSetValue(Local<String> name,
+                          Local<Value> value,
+                          const PropertyCallbackInfo<Value> &info)
 {
   Local<Object> self = info.Holder();
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
@@ -220,13 +220,13 @@ Handle<Value> msV8ShapeObjSetValue(Local<String> name,
 
   if (iter == indexes->end()) {
     ThrowException(String::New("Invalid value name."));
-    return Handle<Value>();
   }
-
-  const int &index = (*iter).second;
-  msFree(values[index]);
-  values[index] = msStrdup(*utf8_value);
-  return Handle<Value>();
+  else
+  {
+    const int &index = (*iter).second;
+    msFree(values[index]);
+    values[index] = msStrdup(*utf8_value);
+  }
 }
 
 Handle<Value> msV8ShapeObjSetGeometry(const Arguments& args)
