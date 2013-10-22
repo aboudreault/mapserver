@@ -265,6 +265,8 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
   global->Set(String::New("lineObj"), l.getConstructor());
   V8Shape s(NULL);
   global->Set(String::New("shapeObj"), s.getConstructor());
+
+  Point::Initialize(global);
   
   Handle<Value> result = msV8ExecuteScript(filename);
   if (!result.IsEmpty() && !result->IsUndefined()) {

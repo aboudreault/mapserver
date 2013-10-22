@@ -38,6 +38,8 @@
 #include <stack>
 #include <map>
 #include "v8_i.h"
+#include "v8_object_wrap.hpp"
+#include "point.hpp"
 
 using std::string;
 using std::stack;

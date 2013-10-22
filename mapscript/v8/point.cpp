@@ -31,6 +31,29 @@
 
 #include "v8_mapscript.h"
 
+using namespace v8;
+
+Persistent<FunctionTemplate> Point::constructor;
+
+void Point::Initialize(Handle<Object> target)
+{
+  HandleScope scope;
+  
+  Handle<FunctionTemplate> c = FunctionTemplate::New(Point::New);
+  c->InstanceTemplate()->SetInternalFieldCount(1);
+  c->SetClassName(String::NewSymbol("pointObjj"));
+  
+  target->Set(String::NewSymbol("pointObjj"), c->GetFunction());
+
+  constructor.Reset(Isolate::GetCurrent(),
+                    FunctionTemplate::New(Point::New));  
+}
+
+Point::~Point()
+{
+  msFree(this->point_);
+}
+
 static void msV8PointObjDestroy(Isolate *isolate, Persistent<Object> *object,
                                 pointObj *point)
 {
@@ -39,6 +62,41 @@ static void msV8PointObjDestroy(Isolate *isolate, Persistent<Object> *object,
   object->Clear();
 }
 
+Handle<Value> Point::New(const Arguments& args)
+{
+  HandleScope scope;
+
+  if (args[0]->IsExternal())
+  {
+    Local<External> ext = Local<External>::Cast(args[0]);
+    void *ptr = ext->Value();
+    Point *point = static_cast<Point*>(ptr);
+    point->Wrap(args.This());
+  }
+  else
+  {
+    pointObj *p = (pointObj *)msSmallMalloc(sizeof(pointObj));
+    
+    p->x = 0;
+    p->y = 0;
+#ifdef USE_POINT_Z_M
+    p->z = 0;
+    p->m = 0;
+#endif
+
+    Point *point = new Point(p);
+    point->Wrap(args.This());
+  }
+  
+  return args.This();
+}
+    
+Point::Point(pointObj *p):
+  ObjectWrap()      
+{
+    this->point_ = p;
+}
+ 
 Handle<Value> msV8PointObjNew(const Arguments& args)
 {
   Local<Object> self = args.Holder();

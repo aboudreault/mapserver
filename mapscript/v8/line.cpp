@@ -77,6 +77,9 @@ Handle<Value> msV8LineObjGetPoint(const Arguments& args)
     ThrowException(String::New("Invalid point index."));
     return Undefined();
   }
+
+  // Handle<FunctionTemplate> c = FunctionTemplate::New(Point::constructor);
+  // return c->GetFunction()->NewInstance(1, External::New(&line->point[index]));
   
   V8Point p(&line->point[index], self);
   return p.newInstance();
