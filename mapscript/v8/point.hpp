@@ -39,6 +39,7 @@ public:
   static Persistent<FunctionTemplate> constructor;
   static void Initialize(Handle<Object> target);
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static Handle<Function> Constructor();
 
   Point(pointObj *p);
 private:

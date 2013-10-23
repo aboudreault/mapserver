@@ -78,11 +78,9 @@ Handle<Value> msV8LineObjGetPoint(const Arguments& args)
     return Undefined();
   }
 
-  // Handle<FunctionTemplate> c = FunctionTemplate::New(Point::constructor);
-  // return c->GetFunction()->NewInstance(1, External::New(&line->point[index]));
-  
-  V8Point p(&line->point[index], self);
-  return p.newInstance();
+  Point *point = new Point(&line->point[index]);
+  Handle<Value> ext = External::New(point);  
+  return Point::Constructor()->NewInstance(1, &ext);
 }
 
 Handle<Value> msV8LineObjAddXY(const Arguments& args)

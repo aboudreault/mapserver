@@ -45,8 +45,7 @@ void Point::Initialize(Handle<Object> target)
   
   target->Set(String::NewSymbol("pointObjj"), c->GetFunction());
 
-  constructor.Reset(Isolate::GetCurrent(),
-                    FunctionTemplate::New(Point::New));  
+  constructor.Reset(Isolate::GetCurrent(), c);  
 }
 
 Point::~Point()
@@ -62,7 +61,12 @@ static void msV8PointObjDestroy(Isolate *isolate, Persistent<Object> *object,
   object->Clear();
 }
 
-void Point::New(const v8::FunctionCallbackInfo<v8::Value>& args)
+Handle<Function> Point::Constructor()
+{
+  return (*Point::constructor)->GetFunction();
+}
+
+void Point::New(const v8::FunctionCallbackInfo<Value>& args)
 {
   HandleScope scope;
 

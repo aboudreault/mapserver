@@ -32,6 +32,8 @@
 #include "mapserver-config.h"
 #ifdef USE_V8_MAPSCRIPT
 
+#define V8_ALLOW_ACCESS_TO_RAW_HANDLE_CONSTRUCTOR 1
+
 #include "mapserver.h"
 #include <v8.h>
 #include <string>
@@ -46,7 +48,6 @@ using namespace v8;
 using std::string;
 using std::stack;
 using std::map;
-//using v8::internal::Arguments;
 
 class V8Context
 {
