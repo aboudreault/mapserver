@@ -153,8 +153,9 @@ Handle<Value> msV8ShapeObjGetLine(const Arguments& args)
     return Undefined();
   }
 
-  V8Line l(&shape->line[index], self);
-  return l.newInstance();
+  Line *line = new Line(&shape->line[index]);
+  Handle<Value> ext = External::New(line);  
+  return Line::Constructor()->NewInstance(1, &ext);
 }
 
 

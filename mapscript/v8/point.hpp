@@ -43,8 +43,6 @@ public:
   Point(pointObj *p);
   inline pointObj* get() { return this_; }
 
-  static void getr(Local<String> property,
-                          const PropertyCallbackInfo<Value>& info)  ;
   static void getProp(Local<String> property,
                       const PropertyCallbackInfo<Value>& info);
   static void setProp(Local<String> property,

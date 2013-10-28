@@ -42,6 +42,7 @@
 #include "v8_i.h"
 #include "v8_object_wrap.hpp"
 #include "point.hpp"
+#include "line.hpp"
 
 using namespace v8;
 
@@ -76,6 +77,15 @@ inline void NODE_SET_PROTOTYPE_METHOD(v8::Handle<v8::FunctionTemplate> recv,
 
 #define SET_ATTRIBUTE(t, name, get, set)   \
   t->InstanceTemplate()->SetAccessor(String::NewSymbol(name), get, set)
+
+#define SET_ATTRIBUTE_RO(t, name, get)             \
+  t->InstanceTemplate()->SetAccessor(              \
+        String::NewSymbol(name),                   \
+        get, 0,                                    \
+        Handle<Value>(),                           \
+        DEFAULT,                                   \
+        static_cast<PropertyAttribute>(            \
+          ReadOnly|DontDelete))
 
 #define NODE_DEFINE_CONSTANT(target, name, constant)     \
     (target)->Set(String::NewSymbol(name),               \
@@ -147,7 +157,6 @@ class V8Object
   static char *getStringValue(Local<Value> value, const char *fallback="");
 };
 
-typedef V8Object<lineObj> V8Line;
 typedef V8Object<shapeObj> V8Shape;
 
 #endif

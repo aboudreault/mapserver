@@ -166,23 +166,6 @@ char* V8Object<T>::getStringValue(Local<Value> value, const char *fallback)
 }
 
 template<typename T>
-Handle<FunctionTemplate> makeObjectTemplate(lineObj *line)
-{
-  Handle<FunctionTemplate> func_template = FunctionTemplate::New(msV8LineObjNew);
-  func_template->InstanceTemplate()->SetInternalFieldCount(1);
-  func_template->SetClassName(String::NewSymbol("lineObj"));
-
-  ADD_INTEGER_GETTER("numpoints", numpoints);
-
-  ADD_FUNCTION("point", msV8LineObjGetPoint);
-  ADD_FUNCTION("addXY", msV8LineObjAddXY);
-  ADD_FUNCTION("addXYZ", msV8LineObjAddXYZ);
-  ADD_FUNCTION("add", msV8LineObjAddPoint);
-
-  return func_template;
-}
-
-template<typename T>
 Handle<FunctionTemplate> makeObjectTemplate(shapeObj *shape)
 {
   Handle<FunctionTemplate> func_template = FunctionTemplate::New(msV8ShapeObjNew);
@@ -260,7 +243,6 @@ Handle<Function> V8Object<T>::getConstructor()
   return this->func_template->GetFunction();
 }
 
-template class V8Object<lineObj>;
 template class V8Object<shapeObj>;
 
 #endif

@@ -26,27 +26,37 @@
  * DEALINGS IN THE SOFTWARE.
  **********************************************************************/
 
-#ifndef V8_I_H
-#define V8_I_H
-
-#include "mapserver-config.h"
-#ifdef USE_V8_MAPSCRIPT
+#ifndef LINE_H_
+#define LINE_H_
 
 #include <v8.h>
 
 using namespace v8;
 
-Handle<Value> msV8ShapeObjNew(const Arguments& args);
-Handle<Value> msV8ShapeObjClone(const Arguments& args);
-Handle<Value> msV8ShapeObjGetLine(const Arguments& args);
-Handle<Value> msV8ShapeObjAddLine(const Arguments& args);
-void  msV8ShapeObjGetValue(Local<String> name,
-                           const PropertyCallbackInfo<Value> &info);
-void msV8ShapeObjSetValue(Local<String> name,
-                          Local<Value> value,
-                          const PropertyCallbackInfo<Value> &info);
-Handle<Value> msV8ShapeObjSetGeometry(const Arguments& args);
+class Line: public ObjectWrap
+{
+public:
+  static void Initialize(Handle<Object> target);
+  static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static Handle<Function> Constructor();
 
-#endif
+  Line(lineObj *p);
+  inline lineObj* get() { return this_; }
+
+  static void getProp(Local<String> property,
+                      const PropertyCallbackInfo<Value>& info);
+  static void setProp(Local<String> property,
+                      Local<Value> value,
+                      const PropertyCallbackInfo<void>& info);
+
+  static void getPoint(const v8::FunctionCallbackInfo<Value>& args);
+  static void addXY(const v8::FunctionCallbackInfo<Value>& args);
+  static void addXYZ(const v8::FunctionCallbackInfo<Value>& args);
+  static void addPoint(const v8::FunctionCallbackInfo<Value>& args);
+private:
+  static Persistent<FunctionTemplate> constructor;
+  ~Line();
+  lineObj *this_;
+};
 
 #endif

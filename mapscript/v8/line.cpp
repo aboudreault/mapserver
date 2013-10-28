@@ -31,70 +31,117 @@
 
 #include "v8_mapscript.h"
 
-static void msV8LineObjDestroy(Isolate *isolate, Persistent<Object> *object,
-                               lineObj *line)
+using namespace v8;
+
+Persistent<FunctionTemplate> Line::constructor;
+
+void Line::Initialize(Handle<Object> target)
 {
-  free(line->point);
-  free(line);
-  object->Dispose();
-  object->Clear();
+  HandleScope scope;
+
+  Handle<FunctionTemplate> c = FunctionTemplate::New(Point::New);
+  c->InstanceTemplate()->SetInternalFieldCount(1);
+  c->SetClassName(String::NewSymbol("lineObj"));
+
+  SET_ATTRIBUTE_RO(c, "numpoints", getProp);
+
+  NODE_SET_PROTOTYPE_METHOD(c, "point", getPoint);
+  NODE_SET_PROTOTYPE_METHOD(c, "addXY", addXY);  
+  NODE_SET_PROTOTYPE_METHOD(c, "addXYZ", addXYZ);
+  NODE_SET_PROTOTYPE_METHOD(c, "add", addPoint);
+  
+  target->Set(String::NewSymbol("lineObj"), c->GetFunction());
+
+  constructor.Reset(Isolate::GetCurrent(), c);
 }
 
-Handle<Value> msV8LineObjNew(const Arguments& args)
+Line::~Line()
 {
-  Local<Object> self = args.Holder();
+  free(this_->point);
+  free(this_);
+}
 
-  if (!self->Has(String::New("__obj__"))) {
-    lineObj *line = (lineObj *)msSmallMalloc(sizeof(lineObj));
-    
-    line->numpoints=0;
-    line->point=NULL;
+Handle<Function> Line::Constructor()
+{
+  return (*Line::constructor)->GetFunction();
+}
 
-    V8Line::setInternalField(self, line);
-    Persistent<Object> pobj;
-    pobj.Reset(Isolate::GetCurrent(), self);
-    pobj.MakeWeak(line, msV8LineObjDestroy);        
+void Line::New(const v8::FunctionCallbackInfo<Value>& args)
+{
+  HandleScope scope;
+
+  if (args[0]->IsExternal())
+  {
+    Local<External> ext = Local<External>::Cast(args[0]);
+    void *ptr = ext->Value();
+    Line *line = static_cast<Line*>(ptr);
+    line->Wrap(args.Holder());
   }
+  else
+  {
+    lineObj *l = (lineObj *)msSmallMalloc(sizeof(lineObj));
 
-  return self;
+    l->numpoints=0;
+    l->point=NULL;
+
+    Line *line = new Line(l);
+    line->Wrap(args.Holder());
+  }
 }
 
-Handle<Value> msV8LineObjGetPoint(const Arguments& args)
+Line::Line(lineObj *p):
+  ObjectWrap()
 {
+    this->this_ = p;
+}
+
+void Line::getProp(Local<String> property,
+                   const PropertyCallbackInfo<Value>& info)
+{
+    HandleScope scope;
+    Line* p = ObjectWrap::Unwrap<Line>(info.Holder());
+    std::string name = TOSTR(property);
+    if (name == "numpoints")
+      info.GetReturnValue().Set(Integer::New(p->get()->numpoints));
+}
+
+void Line::getPoint(const v8::FunctionCallbackInfo<Value>& args)
+{
+  HandleScope scope;
+
   if (args.Length() < 1 || !args[0]->IsInt32()) {
     ThrowException(String::New("Invalid argument"));
-    return Undefined();
+    return;
   }
 
+  Line* l = ObjectWrap::Unwrap<Line>(args.Holder());
+  lineObj* line = l->get();
+
   int index = args[0]->Int32Value();
-  Local<Object> self = args.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  lineObj *line = static_cast<lineObj*>(ptr);
 
   if (index < 0 || index >= line->numpoints)
   {
     ThrowException(String::New("Invalid point index."));
-    return Undefined();
+    return;
   }
 
   Point *point = new Point(&line->point[index]);
   Handle<Value> ext = External::New(point);  
-  return Point::Constructor()->NewInstance(1, &ext);
+  args.GetReturnValue().Set(Point::Constructor()->NewInstance(1, &ext));
 }
 
-Handle<Value> msV8LineObjAddXY(const Arguments& args)
+void Line::addXY(const v8::FunctionCallbackInfo<Value>& args)
 {
+  HandleScope scope;
+  
   if (args.Length() < 2 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
     ThrowException(String::New("Invalid argument"));
-    return Undefined();
+    return;
   }
 
-  Local<Object> self = args.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  lineObj *line = static_cast<lineObj*>(ptr);
-
+  Line* l = ObjectWrap::Unwrap<Line>(args.Holder());
+  lineObj* line = l->get();
+  
   if(line->numpoints == 0) /* new */
     line->point = (pointObj *)msSmallMalloc(sizeof(pointObj));
   else /* extend array */
@@ -108,22 +155,20 @@ Handle<Value> msV8LineObjAddXY(const Arguments& args)
 #endif
 
   line->numpoints++;
-
-  return Undefined();
 }
 
-Handle<Value> msV8LineObjAddXYZ(const Arguments& args)
+void Line::addXYZ(const v8::FunctionCallbackInfo<Value>& args)
 {
+  HandleScope scope;
+
   if (args.Length() < 3 || !args[0]->IsNumber() ||
       !args[1]->IsNumber() || !args[2]->IsNumber()) {
     ThrowException(String::New("Invalid argument"));
-    return Undefined();
+    return;
   }
 
-  Local<Object> self = args.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  lineObj *line = static_cast<lineObj*>(ptr);
+  Line* l = ObjectWrap::Unwrap<Line>(args.Holder());
+  lineObj* line = l->get();
 
   if(line->numpoints == 0) /* new */
     line->point = (pointObj *)msSmallMalloc(sizeof(pointObj));
@@ -138,27 +183,23 @@ Handle<Value> msV8LineObjAddXYZ(const Arguments& args)
     line->point[line->numpoints].m = args[3]->NumberValue();
 #endif
   line->numpoints++;
-
-  return Undefined();
 }
 
-Handle<Value> msV8LineObjAddPoint(const Arguments& args)
+void Line::addPoint(const v8::FunctionCallbackInfo<Value>& args)
 {
+  HandleScope scope;
+  
   if (args.Length() < 1 || !args[0]->IsObject() ||
       !args[0]->ToObject()->GetConstructorName()->Equals(String::New("pointObj"))) {
     ThrowException(String::New("Invalid argument"));
-    return Undefined();
+    return;
   }
 
-  Local<Object> point_obj = args[0]->ToObject();
-  Local<Object> self = args.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  lineObj *line = static_cast<lineObj*>(ptr);
-  wrap = Local<External>::Cast(point_obj->GetInternalField(0));
-  ptr = wrap->Value();
-  pointObj *point = static_cast<pointObj*>(ptr);
-
+  Line* l = ObjectWrap::Unwrap<Line>(args.Holder());
+  lineObj* line = l->get();
+  Point* p = ObjectWrap::Unwrap<Point>(args.Holder());
+  pointObj* point = p->get();
+  
   if(line->numpoints == 0) /* new */
     line->point = (pointObj *)msSmallMalloc(sizeof(pointObj));
   else /* extend array */
@@ -172,8 +213,6 @@ Handle<Value> msV8LineObjAddPoint(const Arguments& args)
     line->point[line->numpoints].m = point->m;
 #endif
   line->numpoints++;
-
-  return Undefined();
 }
 
 #endif
