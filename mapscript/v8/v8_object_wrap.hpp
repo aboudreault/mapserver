@@ -25,17 +25,6 @@
 #include "v8.h"
 #include <assert.h>
 
-inline void NODE_SET_PROTOTYPE_METHOD(v8::Handle<v8::FunctionTemplate> recv,
-                                      const char* name,
-                                      v8::FunctionCallback callback) {
-  v8::Isolate* isolate = v8::Isolate::GetCurrent();
-  v8::HandleScope handle_scope(isolate);
-  v8::Local<v8::FunctionTemplate> t = v8::FunctionTemplate::New(callback);
-  recv->PrototypeTemplate()->Set(v8::String::NewFromUtf8(isolate, name),
-                                 t->GetFunction());
-}
-#define NODE_SET_PROTOTYPE_METHOD NODE_SET_PROTOTYPE_METHOD
-
 class ObjectWrap {
  public:
   ObjectWrap() {

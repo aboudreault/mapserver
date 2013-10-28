@@ -40,7 +40,7 @@ Handle<Value> getter(Local<String> property,
   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
   void *ptr = wrap->Value();
   T *o = static_cast<T*>(ptr);
-  
+
   return R::New(o->*mptr);
 }
 
@@ -55,7 +55,7 @@ Handle<Value> getter(Local<String> property,
 
   if (o->*mptr == NULL)
     return R::New("");
-  
+
   return R::New(o->*mptr);
 }
 
@@ -84,9 +84,9 @@ void setter(Local<String> property, Local<Value> value,
   char *cvalue = static_cast<T*>(ptr)->*mptr;
 
   if (cvalue)
-    msFree(cvalue);    
+    msFree(cvalue);
 
-  static_cast<T*>(ptr)->*mptr = V8Object<T>::getStringValue(value);  
+  static_cast<T*>(ptr)->*mptr = V8Object<T>::getStringValue(value);
 }
 
 // template<typename T>
@@ -98,7 +98,7 @@ void setter(Local<String> property, Local<Value> value,
 //   Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
 //   void *ptr = wrap->Value();
 //   T *o = static_cast<T*>(ptr);
-  
+
 //   return R::New(o->*mptr);
 // }
 
@@ -114,7 +114,7 @@ void setter(Local<String> property, Local<Value> value,
 
 //   if (o->*mptr == NULL)
 //     return R::New("");
-  
+
 //   return R::New(o->*mptr);
 // }
 
@@ -145,10 +145,10 @@ void setter(Local<String> property, Local<Value> value,
 //   char *cvalue = static_cast<T*>(ptr)->*mptr;
 
 //   if (cvalue)
-//     msFree(cvalue);    
+//     msFree(cvalue);
 
 //   static_cast<T*>(ptr)->*mptr = getStringValue(value);
-  
+
 // }
 
 template<typename T>
@@ -165,32 +165,11 @@ char* V8Object<T>::getStringValue(Local<Value> value, const char *fallback)
   return str;
 }
 
-// soo ugly
-template<typename T>
-Handle<FunctionTemplate> makeObjectTemplate(pointObj *point)
-{
-  Handle<FunctionTemplate> func_template = FunctionTemplate::New(msV8PointObjNew);
-  func_template->InstanceTemplate()->SetInternalFieldCount(1);   
-  func_template->SetClassName(String::NewSymbol("pointObj"));
-
-  ADD_DOUBLE_ACCESSOR("x", x);
-  ADD_DOUBLE_ACCESSOR("y", y);
-#ifdef USE_POINT_Z_M  
-  ADD_DOUBLE_ACCESSOR("z", z);
-  ADD_DOUBLE_ACCESSOR("m", m);
-#endif
-  
-  ADD_FUNCTION("setXY", msV8PointObjSetXY);
-  ADD_FUNCTION("setXYZ", msV8PointObjSetXYZ);
-
-  return func_template;
-}
-
 template<typename T>
 Handle<FunctionTemplate> makeObjectTemplate(lineObj *line)
 {
   Handle<FunctionTemplate> func_template = FunctionTemplate::New(msV8LineObjNew);
-  func_template->InstanceTemplate()->SetInternalFieldCount(1);   
+  func_template->InstanceTemplate()->SetInternalFieldCount(1);
   func_template->SetClassName(String::NewSymbol("lineObj"));
 
   ADD_INTEGER_GETTER("numpoints", numpoints);
@@ -200,37 +179,37 @@ Handle<FunctionTemplate> makeObjectTemplate(lineObj *line)
   ADD_FUNCTION("addXYZ", msV8LineObjAddXYZ);
   ADD_FUNCTION("add", msV8LineObjAddPoint);
 
-  return func_template;  
+  return func_template;
 }
 
 template<typename T>
 Handle<FunctionTemplate> makeObjectTemplate(shapeObj *shape)
 {
   Handle<FunctionTemplate> func_template = FunctionTemplate::New(msV8ShapeObjNew);
-  func_template->InstanceTemplate()->SetInternalFieldCount(1);   
+  func_template->InstanceTemplate()->SetInternalFieldCount(1);
   func_template->SetClassName(String::NewSymbol("shapeObj"));
 
   ADD_INTEGER_GETTER("numvalues", numvalues);
-  ADD_INTEGER_GETTER("numlines", numlines);  
+  ADD_INTEGER_GETTER("numlines", numlines);
   ADD_LONG_GETTER("index", index);
   ADD_INTEGER_GETTER("type", type);
   ADD_INTEGER_GETTER("tileindex", tileindex);
   ADD_INTEGER_GETTER("classindex", classindex);
   ADD_STRING_ACCESSOR("text", text);
-  
+
   ADD_FUNCTION("clone", msV8ShapeObjClone);
   ADD_FUNCTION("line", msV8ShapeObjGetLine);
   ADD_FUNCTION("add", msV8ShapeObjAddLine);
   ADD_FUNCTION("setGeometry", msV8ShapeObjSetGeometry);
 
-  return func_template;  
+  return func_template;
 }
 
 template<typename T>
 V8Object<T>::V8Object(T* obj, Handle<Object> parent)
 {
   this->obj = obj;
-  
+
   if (!parent.IsEmpty()) {
     this->parent = parent;
   }
@@ -246,15 +225,15 @@ Handle<Object> V8Object<T>::newInstance()
   Handle<String> key = String::New("__obj__");
   Handle<String> key_parent = String::New("__parent__");
   Handle<External> external_obj = External::New(this->obj);
-    
+
   this->func_template->InstanceTemplate()->Set(key, external_obj);
   if (!parent.IsEmpty())
-    this->func_template->InstanceTemplate()->Set(key_parent, parent);  
+    this->func_template->InstanceTemplate()->Set(key_parent, parent);
   Handle<Object> obj = this->func_template->GetFunction()->NewInstance();
 
   obj->SetInternalField(0, external_obj);
   obj->Delete(key);
-  
+
   if (!parent.IsEmpty()) {
     obj->SetHiddenValue(String::New("__parent__"), this->parent);
   }
@@ -281,7 +260,6 @@ Handle<Function> V8Object<T>::getConstructor()
   return this->func_template->GetFunction();
 }
 
-template class V8Object<pointObj>;
 template class V8Object<lineObj>;
 template class V8Object<shapeObj>;
 

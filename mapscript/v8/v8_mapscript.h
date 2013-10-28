@@ -61,6 +61,28 @@ public:
 
 #define V8CONTEXT(map) ((V8Context*) (map)->v8context)
 
+inline void NODE_SET_PROTOTYPE_METHOD(v8::Handle<v8::FunctionTemplate> recv,
+                                      const char* name,
+                                      v8::FunctionCallback callback) {
+  v8::Isolate* isolate = v8::Isolate::GetCurrent();
+  v8::HandleScope handle_scope(isolate);
+  v8::Local<v8::FunctionTemplate> t = v8::FunctionTemplate::New(callback);
+  recv->InstanceTemplate()->Set(v8::String::NewFromUtf8(isolate, name),
+                                t->GetFunction());
+}
+#define NODE_SET_PROTOTYPE_METHOD NODE_SET_PROTOTYPE_METHOD
+
+#define TOSTR(obj) (*String::Utf8Value((obj)->ToString()))
+
+#define SET_ATTRIBUTE(t, name, get, set)   \
+  t->InstanceTemplate()->SetAccessor(String::NewSymbol(name), get, set)
+
+#define NODE_DEFINE_CONSTANT(target, name, constant)     \
+    (target)->Set(String::NewSymbol(name),               \
+                  Integer::New(constant),                \
+                  static_cast<PropertyAttribute>(        \
+                  ReadOnly|DontDelete));
+
 /* those getter/setter cannot be function due to c++ templating
    limitation. another solution could be used if/when needed. */
 #define ADD_GETTER(name, property_type, property, v8_type) func_template->InstanceTemplate()->SetAccessor(String::New(name), \
@@ -99,6 +121,7 @@ public:
 
 #define ADD_FUNCTION(name, function)  func_template->InstanceTemplate()->Set(String::New(name), FunctionTemplate::New(function));
 
+
 template<typename T>
 class V8Object
 {
@@ -124,7 +147,6 @@ class V8Object
   static char *getStringValue(Local<Value> value, const char *fallback="");
 };
 
-typedef V8Object<pointObj> V8Point;
 typedef V8Object<lineObj> V8Line;
 typedef V8Object<shapeObj> V8Shape;
 

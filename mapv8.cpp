@@ -259,8 +259,6 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
 
   /* constructor */
   //bad function..
-  V8Point p(NULL);
-  global->Set(String::New("pointObj"), p.getConstructor());
   V8Line l(NULL);
   global->Set(String::New("lineObj"), l.getConstructor());
   V8Shape s(NULL);
@@ -305,8 +303,6 @@ shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
 
   /* constructor */
   //bad function..
-  V8Point p(NULL);
-  global->Set(String::New("pointObj"), p.getConstructor());
   V8Line l(NULL);
   global->Set(String::New("lineObj"), l.getConstructor());
   V8Shape s(NULL);

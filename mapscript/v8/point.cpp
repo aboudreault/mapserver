@@ -38,27 +38,29 @@ Persistent<FunctionTemplate> Point::constructor;
 void Point::Initialize(Handle<Object> target)
 {
   HandleScope scope;
-  
+
   Handle<FunctionTemplate> c = FunctionTemplate::New(Point::New);
   c->InstanceTemplate()->SetInternalFieldCount(1);
-  c->SetClassName(String::NewSymbol("pointObjj"));
-  
-  target->Set(String::NewSymbol("pointObjj"), c->GetFunction());
+  c->SetClassName(String::NewSymbol("pointObj"));
 
-  constructor.Reset(Isolate::GetCurrent(), c);  
+  SET_ATTRIBUTE(c, "x", getProp, setProp);
+  SET_ATTRIBUTE(c, "y", getProp, setProp);
+#ifdef USE_POINT_Z_M
+  SET_ATTRIBUTE(c, "z", getProp, setProp);
+  SET_ATTRIBUTE(c, "m", getProp, setProp);
+#endif
+
+  NODE_SET_PROTOTYPE_METHOD(c, "setXY", setXY);
+  NODE_SET_PROTOTYPE_METHOD(c, "setXYZ", setXYZ);
+
+  target->Set(String::NewSymbol("pointObj"), c->GetFunction());
+
+  constructor.Reset(Isolate::GetCurrent(), c);
 }
 
 Point::~Point()
 {
-  msFree(this->point_);
-}
-
-static void msV8PointObjDestroy(Isolate *isolate, Persistent<Object> *object,
-                                pointObj *point)
-{
-  msFree(point);
-  object->Dispose();
-  object->Clear();
+  msFree(this->get());
 }
 
 Handle<Function> Point::Constructor()
@@ -75,12 +77,12 @@ void Point::New(const v8::FunctionCallbackInfo<Value>& args)
     Local<External> ext = Local<External>::Cast(args[0]);
     void *ptr = ext->Value();
     Point *point = static_cast<Point*>(ptr);
-    point->Wrap(args.This());
+    point->Wrap(args.Holder());
   }
   else
   {
     pointObj *p = (pointObj *)msSmallMalloc(sizeof(pointObj));
-    
+
     p->x = 0;
     p->y = 0;
 #ifdef USE_POINT_Z_M
@@ -89,81 +91,99 @@ void Point::New(const v8::FunctionCallbackInfo<Value>& args)
 #endif
 
     Point *point = new Point(p);
-    point->Wrap(args.This());
+    point->Wrap(args.Holder());
   }
 }
-    
+
 Point::Point(pointObj *p):
-  ObjectWrap()      
+  ObjectWrap()
 {
-    this->point_ = p;
+    this->this_ = p;
 }
- 
-Handle<Value> msV8PointObjNew(const Arguments& args)
-{
-  Local<Object> self = args.Holder();
 
-  if (!self->Has(String::New("__obj__"))) {
-    pointObj *p = (pointObj *)msSmallMalloc(sizeof(pointObj));
-    
-    p->x = 0;
-    p->y = 0;
+void Point::getProp(Local<String> property,
+                    const PropertyCallbackInfo<Value>& info)
+{
+    HandleScope scope;
+    Point* p = ObjectWrap::Unwrap<Point>(info.Holder());
+    std::string name = TOSTR(property);
+    if (name == "x")
+      info.GetReturnValue().Set(Number::New(p->get()->x));
+    else if (name == "y")
+      info.GetReturnValue().Set(Number::New(p->get()->y));
 #ifdef USE_POINT_Z_M
-    p->z = 0;
-    p->m = 0;
+    else if (name == "z")
+      info.GetReturnValue().Set(Number::New(p->get()->z));
+    else if (name == "m")
+      info.GetReturnValue().Set(Number::New(p->get()->m));
 #endif
-  
-    V8Point::setInternalField(self, p);
-    Persistent<Object> pobj;
-    pobj.Reset(Isolate::GetCurrent(), self);
-    pobj.MakeWeak(p, msV8PointObjDestroy);   
-  }
-
-  return self;  
+    else
+      info.GetReturnValue().Set(Undefined());
 }
 
-Handle<Value> msV8PointObjSetXY(const Arguments& args)
+void Point::setProp(Local<String> property,
+                    Local<Value> value,
+                    const PropertyCallbackInfo<void>& info)
 {
+    HandleScope scope;
+    Point* p = ObjectWrap::Unwrap<Point>(info.Holder());
+    std::string name = TOSTR(property);
+    if (!value->IsNumber())
+      ThrowException(Exception::TypeError(
+                           String::New("point value must be a number")));
+    if (name == "x") {
+      p->get()->x = value->NumberValue();
+    } else if (name == "y") {
+      p->get()->y = value->NumberValue();
+    }
+#ifdef USE_POINT_Z_M
+    else if (name == "z") {
+      p->get()->z = value->NumberValue();
+    } else if (name == "m") {
+      p->get()->m = value->NumberValue();
+    }
+#endif
+
+}
+
+void Point::setXY(const v8::FunctionCallbackInfo<v8::Value>& args)
+{
+  HandleScope scope;
+
   if (args.Length() < 2 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
     ThrowException(String::New("Invalid argument"));
-    return Undefined();
+    return;
   }
 
-  Local<Object> self = args.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  pointObj *point = static_cast<pointObj*>(ptr);
+  Point* p = ObjectWrap::Unwrap<Point>(args.Holder());
 
-  point->x = args[0]->NumberValue();
-  point->y = args[1]->NumberValue();
+  p->get()->x = args[0]->NumberValue();
+  p->get()->y = args[1]->NumberValue();
 
-  return Undefined();
 }
 
-Handle<Value> msV8PointObjSetXYZ(const Arguments& args)
+void Point::setXYZ(const v8::FunctionCallbackInfo<v8::Value>& args)
 {
+  HandleScope scope;
+
   if (args.Length() < 3 ||
       !args[0]->IsNumber() || !args[1]->IsNumber() || !args[2]->IsNumber()) {
     ThrowException(String::New("Invalid argument"));
-    return Undefined();
+    return;
   }
 
-  Local<Object> self = args.Holder();
-  Local<External> wrap = Local<External>::Cast(self->GetInternalField(0));
-  void *ptr = wrap->Value();
-  pointObj *point = static_cast<pointObj*>(ptr);
+  Point* p = ObjectWrap::Unwrap<Point>(args.Holder());
 
-  point->x = args[0]->NumberValue();
-  point->y = args[1]->NumberValue();
+  p->get()->x = args[0]->NumberValue();
+  p->get()->y = args[1]->NumberValue();
 
 #ifdef USE_POINT_Z_M
-  point->z = args[2]->NumberValue();
+  p->get()->z = args[2]->NumberValue();
   if (args.Length() > 3 && args[3]->IsNumber()) {
-    point->m = args[3]->NumberValue();
+    p->get()->m = args[3]->NumberValue();
   }
 #endif
-  return Undefined();
-}
 
+}
 
 #endif

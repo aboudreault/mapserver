@@ -36,15 +36,27 @@ using namespace v8;
 class Point: public ObjectWrap
 {
 public:
-  static Persistent<FunctionTemplate> constructor;
   static void Initialize(Handle<Object> target);
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
   static Handle<Function> Constructor();
 
   Point(pointObj *p);
+  inline pointObj* get() { return this_; }
+
+  static void getr(Local<String> property,
+                          const PropertyCallbackInfo<Value>& info)  ;
+  static void getProp(Local<String> property,
+                      const PropertyCallbackInfo<Value>& info);
+  static void setProp(Local<String> property,
+                      Local<Value> value,
+                      const PropertyCallbackInfo<void>& info);
+
+  static void setXY(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void setXYZ(const v8::FunctionCallbackInfo<v8::Value>& args);
 private:
+  static Persistent<FunctionTemplate> constructor;
   ~Point();
-  pointObj *point_;
+  pointObj *this_;
 };
 
 #endif

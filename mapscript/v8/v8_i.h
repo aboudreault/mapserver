@@ -36,11 +36,6 @@
 
 using namespace v8;
 
-/* pointObj */
-Handle<Value> msV8PointObjNew(const Arguments& args);
-Handle<Value> msV8PointObjSetXY(const Arguments& args);
-Handle<Value> msV8PointObjSetXYZ(const Arguments& args);
-
 Handle<Value> msV8LineObjNew(const Arguments& args);
 Handle<Value> msV8LineObjAddPoint(const Arguments& args);
 Handle<Value> msV8LineObjAddXYZ(const Arguments& args);
