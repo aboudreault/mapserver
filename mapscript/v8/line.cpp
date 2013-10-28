@@ -46,10 +46,10 @@ void Line::Initialize(Handle<Object> target)
   SET_ATTRIBUTE_RO(c, "numpoints", getProp);
 
   NODE_SET_PROTOTYPE_METHOD(c, "point", getPoint);
-  NODE_SET_PROTOTYPE_METHOD(c, "addXY", addXY);  
+  NODE_SET_PROTOTYPE_METHOD(c, "addXY", addXY);
   NODE_SET_PROTOTYPE_METHOD(c, "addXYZ", addXYZ);
   NODE_SET_PROTOTYPE_METHOD(c, "add", addPoint);
-  
+
   target->Set(String::NewSymbol("lineObj"), c->GetFunction());
 
   constructor.Reset(Isolate::GetCurrent(), c);
@@ -89,20 +89,24 @@ void Line::New(const v8::FunctionCallbackInfo<Value>& args)
   }
 }
 
-Line::Line(lineObj *p):
+Line::Line(lineObj *l):
   ObjectWrap()
 {
-    this->this_ = p;
+  this->this_ = l;
 }
 
 void Line::getProp(Local<String> property,
                    const PropertyCallbackInfo<Value>& info)
 {
     HandleScope scope;
-    Line* p = ObjectWrap::Unwrap<Line>(info.Holder());
+    Line* l = ObjectWrap::Unwrap<Line>(info.Holder());
     std::string name = TOSTR(property);
+    Handle<Value> value = Undefined();
+
     if (name == "numpoints")
-      info.GetReturnValue().Set(Integer::New(p->get()->numpoints));
+      value = Integer::New(l->get()->numpoints);
+
+    info.GetReturnValue().Set(value);
 }
 
 void Line::getPoint(const v8::FunctionCallbackInfo<Value>& args)
@@ -126,14 +130,14 @@ void Line::getPoint(const v8::FunctionCallbackInfo<Value>& args)
   }
 
   Point *point = new Point(&line->point[index]);
-  Handle<Value> ext = External::New(point);  
+  Handle<Value> ext = External::New(point);
   args.GetReturnValue().Set(Point::Constructor()->NewInstance(1, &ext));
 }
 
 void Line::addXY(const v8::FunctionCallbackInfo<Value>& args)
 {
   HandleScope scope;
-  
+
   if (args.Length() < 2 || !args[0]->IsNumber() || !args[1]->IsNumber()) {
     ThrowException(String::New("Invalid argument"));
     return;
@@ -141,7 +145,7 @@ void Line::addXY(const v8::FunctionCallbackInfo<Value>& args)
 
   Line* l = ObjectWrap::Unwrap<Line>(args.Holder());
   lineObj* line = l->get();
-  
+
   if(line->numpoints == 0) /* new */
     line->point = (pointObj *)msSmallMalloc(sizeof(pointObj));
   else /* extend array */
@@ -188,7 +192,7 @@ void Line::addXYZ(const v8::FunctionCallbackInfo<Value>& args)
 void Line::addPoint(const v8::FunctionCallbackInfo<Value>& args)
 {
   HandleScope scope;
-  
+
   if (args.Length() < 1 || !args[0]->IsObject() ||
       !args[0]->ToObject()->GetConstructorName()->Equals(String::New("pointObj"))) {
     ThrowException(String::New("Invalid argument"));
@@ -197,9 +201,9 @@ void Line::addPoint(const v8::FunctionCallbackInfo<Value>& args)
 
   Line* l = ObjectWrap::Unwrap<Line>(args.Holder());
   lineObj* line = l->get();
-  Point* p = ObjectWrap::Unwrap<Point>(args.Holder());
+  Point* p = ObjectWrap::Unwrap<Point>(args[0]->ToObject());
   pointObj* point = p->get();
-  
+
   if(line->numpoints == 0) /* new */
     line->point = (pointObj *)msSmallMalloc(sizeof(pointObj));
   else /* extend array */

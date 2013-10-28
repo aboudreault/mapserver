@@ -107,18 +107,20 @@ void Point::getProp(Local<String> property,
     HandleScope scope;
     Point* p = ObjectWrap::Unwrap<Point>(info.Holder());
     std::string name = TOSTR(property);
+    Handle<Value> value = Undefined();
+    
     if (name == "x")
-      info.GetReturnValue().Set(Number::New(p->get()->x));
+      value = Number::New(p->get()->x);
     else if (name == "y")
-      info.GetReturnValue().Set(Number::New(p->get()->y));
+      value = Number::New(p->get()->y);
 #ifdef USE_POINT_Z_M
     else if (name == "z")
-      info.GetReturnValue().Set(Number::New(p->get()->z));
+      value = Number::New(p->get()->z);
     else if (name == "m")
-      info.GetReturnValue().Set(Number::New(p->get()->m));
+      value = Number::New(p->get()->m);
 #endif
-    else
-      info.GetReturnValue().Set(Undefined());
+
+    info.GetReturnValue().Set(value);
 }
 
 void Point::setProp(Local<String> property,

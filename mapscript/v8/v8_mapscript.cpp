@@ -32,6 +32,19 @@
 #include "mapserver.h"
 #include "v8_mapscript.h"
 
+char* getStringValue(Local<Value> value, const char *fallback)
+{
+  if (value->IsString()) {
+    String::AsciiValue string(value);
+    char *str = (char *) malloc(string.length() + 1);
+    strcpy(str, *string);
+    return str;
+  }
+  char *str = (char *) malloc(strlen(fallback) + 1);
+  strcpy(str, fallback);
+  return str;
+}
+
 template <typename T, typename V, V T::*mptr, typename R>
 Handle<Value> getter(Local<String> property,
                      const AccessorInfo &info)
@@ -166,29 +179,6 @@ char* V8Object<T>::getStringValue(Local<Value> value, const char *fallback)
 }
 
 template<typename T>
-Handle<FunctionTemplate> makeObjectTemplate(shapeObj *shape)
-{
-  Handle<FunctionTemplate> func_template = FunctionTemplate::New(msV8ShapeObjNew);
-  func_template->InstanceTemplate()->SetInternalFieldCount(1);
-  func_template->SetClassName(String::NewSymbol("shapeObj"));
-
-  ADD_INTEGER_GETTER("numvalues", numvalues);
-  ADD_INTEGER_GETTER("numlines", numlines);
-  ADD_LONG_GETTER("index", index);
-  ADD_INTEGER_GETTER("type", type);
-  ADD_INTEGER_GETTER("tileindex", tileindex);
-  ADD_INTEGER_GETTER("classindex", classindex);
-  ADD_STRING_ACCESSOR("text", text);
-
-  ADD_FUNCTION("clone", msV8ShapeObjClone);
-  ADD_FUNCTION("line", msV8ShapeObjGetLine);
-  ADD_FUNCTION("add", msV8ShapeObjAddLine);
-  ADD_FUNCTION("setGeometry", msV8ShapeObjSetGeometry);
-
-  return func_template;
-}
-
-template<typename T>
 V8Object<T>::V8Object(T* obj, Handle<Object> parent)
 {
   this->obj = obj;
@@ -199,7 +189,7 @@ V8Object<T>::V8Object(T* obj, Handle<Object> parent)
 
   this->obj_template = ObjectTemplate::New();
   this->obj_template->SetInternalFieldCount(1);
-  this->func_template = makeObjectTemplate<T>(this->obj);
+  //  this->func_template = makeObjectTemplate<T>(this->obj);
 }
 
 template<typename T>
@@ -242,7 +232,5 @@ Handle<Function> V8Object<T>::getConstructor()
 {
   return this->func_template->GetFunction();
 }
-
-template class V8Object<shapeObj>;
 
 #endif

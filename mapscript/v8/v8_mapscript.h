@@ -38,17 +38,15 @@
 #include <v8.h>
 #include <string>
 #include <stack>
-#include <map>
-#include "v8_i.h"
 #include "v8_object_wrap.hpp"
 #include "point.hpp"
 #include "line.hpp"
+#include "shape.hpp"
 
 using namespace v8;
 
 using std::string;
 using std::stack;
-using std::map;
 
 class V8Context
 {
@@ -75,6 +73,9 @@ inline void NODE_SET_PROTOTYPE_METHOD(v8::Handle<v8::FunctionTemplate> recv,
 
 #define TOSTR(obj) (*String::Utf8Value((obj)->ToString()))
 
+#define SET(target, name, value)                 \
+  (target)->PrototypeTemplate()->Set(String::NewSymbol(name), value);
+
 #define SET_ATTRIBUTE(t, name, get, set)   \
   t->InstanceTemplate()->SetAccessor(String::NewSymbol(name), get, set)
 
@@ -92,6 +93,8 @@ inline void NODE_SET_PROTOTYPE_METHOD(v8::Handle<v8::FunctionTemplate> recv,
                   Integer::New(constant),                \
                   static_cast<PropertyAttribute>(        \
                   ReadOnly|DontDelete));
+
+char* getStringValue(Local<Value> value, const char *fallback="");
 
 /* those getter/setter cannot be function due to c++ templating
    limitation. another solution could be used if/when needed. */
@@ -131,13 +134,12 @@ inline void NODE_SET_PROTOTYPE_METHOD(v8::Handle<v8::FunctionTemplate> recv,
 
 #define ADD_FUNCTION(name, function)  func_template->InstanceTemplate()->Set(String::New(name), FunctionTemplate::New(function));
 
-
 template<typename T>
 class V8Object
 {
  private:
   void addFunction(const char* name, InvocationCallback function);
-  
+
  protected:
   T* obj;
   Handle<ObjectTemplate> obj_template;
@@ -146,8 +148,7 @@ class V8Object
   Handle<Object> value; /* v8 value */
   Handle<FunctionTemplate> func_template;
 
-  
- public: 
+ public:
   V8Object(T* obj, Handle<Object> parent = Handle<Object>());
 
   Handle<Object> newInstance();
@@ -156,8 +157,6 @@ class V8Object
   static void setInternalField(Handle<Object> obj, T *p);
   static char *getStringValue(Local<Value> value, const char *fallback="");
 };
-
-typedef V8Object<shapeObj> V8Shape;
 
 #endif
 

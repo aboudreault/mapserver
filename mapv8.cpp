@@ -248,23 +248,22 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
   Context::Scope context_scope(context);
   Handle<Object> global = context->Global();
 
+  Point::Initialize(global);
+  Line::Initialize(global);
+  Shape::Initialize(global);
+
   /* we don't need this, since the shape object will be free by MapServer */
   /* Persistent<Object> persistent_shape; */
   Handle<ObjectTemplate> layer_obj_templ = ObjectTemplate::New();
   layer_obj_templ->SetInternalFieldCount(1);
   Handle<Object> layer_obj = layer_obj_templ->NewInstance();
   layer_obj->SetInternalField(0, External::New(layer));   
-  V8Shape shape_(shape, layer_obj);
-  global->Set(String::New("shape"), shape_.newInstance());
 
-  /* constructor */
-  //bad function..
-  V8Shape s(NULL);
-  global->Set(String::New("shapeObj"), s.getConstructor());
+  Shape* shape_ = new Shape(shape);
+  Handle<Value> ext = External::New(shape_);      
+  global->Set(String::New("shape"),
+              Shape::Constructor()->NewInstance(1, &ext));
 
-  Point::Initialize(global);
-  Line::Initialize(global);  
-  
   Handle<Value> result = msV8ExecuteScript(filename);
   if (!result.IsEmpty() && !result->IsUndefined()) {
     String::AsciiValue ascii(result);
@@ -297,14 +296,11 @@ shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
   // layer_obj_templ->SetInternalFieldCount(1);
   // Handle<Object> layer_obj = layer_obj_templ->NewInstance();
   // layer_obj->SetInternalField(0, External::New(layer));   
-  V8Shape shape_(shape);
-  global->Set(String::New("shape"), shape_.newInstance());
+  Shape* shape_ = new Shape(shape);
+  Handle<Value> ext = External::New(shape_);      
+  global->Set(String::New("shape"),
+              Shape::Constructor()->NewInstance(1, &ext));
 
-  /* constructor */
-  //bad function..
-  V8Shape s(NULL);
-  global->Set(String::New("shapeObj"), s.getConstructor());
-  
   Handle<Value> result = msV8ExecuteScript(filename);
   if (!result.IsEmpty() && result->IsObject()) {
     Local<External> wrap = Local<External>::Cast(result->ToObject()->GetInternalField(0));
