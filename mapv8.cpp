@@ -263,6 +263,7 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
   Handle<Value> ext = External::New(shape_);      
   global->Set(String::New("shape"),
               Shape::Constructor()->NewInstance(1, &ext));
+  shape_->addRef(); /* this object should not be freed by the v8 GC */
 
   Handle<Value> result = msV8ExecuteScript(filename);
   if (!result.IsEmpty() && !result->IsUndefined()) {

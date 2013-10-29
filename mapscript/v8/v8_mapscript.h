@@ -96,6 +96,7 @@ inline void NODE_SET_PROTOTYPE_METHOD(v8::Handle<v8::FunctionTemplate> recv,
 
 char* getStringValue(Local<Value> value, const char *fallback="");
 
+// kill
 /* those getter/setter cannot be function due to c++ templating
    limitation. another solution could be used if/when needed. */
 #define ADD_GETTER(name, property_type, property, v8_type) func_template->InstanceTemplate()->SetAccessor(String::New(name), \

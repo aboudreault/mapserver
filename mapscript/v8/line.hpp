@@ -40,7 +40,7 @@ public:
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
   static Handle<Function> Constructor();
 
-  Line(lineObj *p);
+  Line(lineObj *l, ObjectWrap *p = NULL);
   inline lineObj* get() { return this_; }
 
   static void getProp(Local<String> property,
@@ -57,6 +57,7 @@ private:
   static Persistent<FunctionTemplate> constructor;
   ~Line();
   lineObj *this_;
+  ObjectWrap *parent_;
 };
 
 #endif

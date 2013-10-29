@@ -46,6 +46,8 @@ public:
 
   Shape(shapeObj *p);
   inline shapeObj* get() { return this_; }
+  inline void addRef() { Ref(); }
+  inline void delRef() { Unref(); }
 
   static void getProp(Local<String> property,
                       const PropertyCallbackInfo<Value>& info);

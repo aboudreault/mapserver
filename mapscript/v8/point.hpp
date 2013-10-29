@@ -40,7 +40,7 @@ public:
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
   static Handle<Function> Constructor();
 
-  Point(pointObj *p);
+  Point(pointObj *p, ObjectWrap *pa = NULL);
   inline pointObj* get() { return this_; }
 
   static void getProp(Local<String> property,
@@ -55,6 +55,7 @@ private:
   static Persistent<FunctionTemplate> constructor;
   ~Point();
   pointObj *this_;
+  ObjectWrap *parent_;
 };
 
 #endif

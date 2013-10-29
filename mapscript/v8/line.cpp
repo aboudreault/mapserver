@@ -39,7 +39,7 @@ void Line::Initialize(Handle<Object> target)
 {
   HandleScope scope;
 
-  Handle<FunctionTemplate> c = FunctionTemplate::New(Point::New);
+  Handle<FunctionTemplate> c = FunctionTemplate::New(Line::New);
   c->InstanceTemplate()->SetInternalFieldCount(1);
   c->SetClassName(String::NewSymbol("lineObj"));
 
@@ -57,8 +57,8 @@ void Line::Initialize(Handle<Object> target)
 
 Line::~Line()
 {
-  free(this_->point);
-  free(this_);
+  msFree(this->this_->point);
+  msFree(this->this_);
 }
 
 Handle<Function> Line::Constructor()
@@ -75,7 +75,12 @@ void Line::New(const v8::FunctionCallbackInfo<Value>& args)
     Local<External> ext = Local<External>::Cast(args[0]);
     void *ptr = ext->Value();
     Line *line = static_cast<Line*>(ptr);
-    line->Wrap(args.Holder());
+    Handle<Object> self = args.Holder();
+    line->Wrap(self);
+    if (line->parent_) {
+      self->SetHiddenValue(String::New("__parent__"), line->parent_->handle());
+      line->Ref();
+    }
   }
   else
   {
@@ -87,12 +92,14 @@ void Line::New(const v8::FunctionCallbackInfo<Value>& args)
     Line *line = new Line(l);
     line->Wrap(args.Holder());
   }
+
 }
 
-Line::Line(lineObj *l):
+Line::Line(lineObj *l, ObjectWrap *p):
   ObjectWrap()
 {
   this->this_ = l;
+  this->parent_ = p;
 }
 
 void Line::getProp(Local<String> property,
@@ -129,7 +136,7 @@ void Line::getPoint(const v8::FunctionCallbackInfo<Value>& args)
     return;
   }
 
-  Point *point = new Point(&line->point[index]);
+  Point *point = new Point(&line->point[index], l);
   Handle<Value> ext = External::New(point);
   args.GetReturnValue().Set(Point::Constructor()->NewInstance(1, &ext));
 }

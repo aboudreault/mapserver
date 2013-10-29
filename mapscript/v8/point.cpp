@@ -77,7 +77,12 @@ void Point::New(const v8::FunctionCallbackInfo<Value>& args)
     Local<External> ext = Local<External>::Cast(args[0]);
     void *ptr = ext->Value();
     Point *point = static_cast<Point*>(ptr);
-    point->Wrap(args.Holder());
+    Handle<Object> self = args.Holder();
+    point->Wrap(self);
+    if (point->parent_) {
+      self->SetHiddenValue(String::New("__parent__"), point->parent_->handle());
+      point->Ref();
+    }
   }
   else
   {
@@ -95,10 +100,11 @@ void Point::New(const v8::FunctionCallbackInfo<Value>& args)
   }
 }
 
-Point::Point(pointObj *p):
+ Point::Point(pointObj *p, ObjectWrap *pa):
   ObjectWrap()
 {
     this->this_ = p;
+    this->parent_ = pa;
 }
 
 void Point::getProp(Local<String> property,

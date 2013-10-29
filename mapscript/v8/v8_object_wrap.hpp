@@ -78,8 +78,8 @@ class ObjectWrap {
 
 
   inline void MakeWeak(void) {
-    //persistent().MakeWeak(this, WeakCallback);
-    //persistent().MarkIndependent();
+    persistent().MakeWeak(this, WeakCallback);
+    persistent().MarkIndependent();
   }
 
   /* Ref() marks the object as being attached to an event loop.
