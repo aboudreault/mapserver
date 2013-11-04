@@ -66,7 +66,6 @@ void Shape::Initialize(Handle<Object> target)
 
 Shape::~Shape()
 {
-  msDebug("soiboire, yep destructed");
   msFreeShape(this->get());
   msFree(this->get());
 }
@@ -337,7 +336,6 @@ void Shape::attributeMapDestroy(Isolate *isolate,
                                 Persistent<Object> *object,
                                 map<string, int> *map)
 {
-  msDebug("soiboire, yep MAP destructed ");
   delete map;
   object->Dispose();
   object->Clear();
