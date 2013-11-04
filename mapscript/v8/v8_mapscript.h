@@ -96,68 +96,6 @@ inline void NODE_SET_PROTOTYPE_METHOD(v8::Handle<v8::FunctionTemplate> recv,
 
 char* getStringValue(Local<Value> value, const char *fallback="");
 
-// kill
-/* those getter/setter cannot be function due to c++ templating
-   limitation. another solution could be used if/when needed. */
-#define ADD_GETTER(name, property_type, property, v8_type) func_template->InstanceTemplate()->SetAccessor(String::New(name), \
-                   getter<T, property_type, &T::property, v8_type>, \
-                   0, \
-                   Handle<Value>(), \
-                   PROHIBITS_OVERWRITING, \
-                   ReadOnly)
-
-#define ADD_DOUBLE_GETTER(name, property) ADD_GETTER(name, double, property, Number)
-#define ADD_INTEGER_GETTER(name, property) ADD_GETTER(name, int, property, Integer)
-#define ADD_LONG_GETTER(name, property) ADD_GETTER(name, long, property, Integer)
-#define ADD_STRING_GETTER(name, property) func_template->InstanceTemplate()->SetAccessor(String::New(name), \
-                   getter<T, &T::property, String>, \
-                   0, \
-                   Handle<Value>(), \
-                   PROHIBITS_OVERWRITING, \
-                   ReadOnly)
-
-#define ADD_ACCESSOR(name, property_type, property, v8_type) func_template->InstanceTemplate()->SetAccessor(String::New(name), \
-                     getter<T, property_type, &T::property, v8_type>, \
-                     setter<T, property_type, &T::property>, \
-                     Handle<Value>(), \
-                     PROHIBITS_OVERWRITING, \
-                     None)
-
-#define ADD_DOUBLE_ACCESSOR(name, property) ADD_ACCESSOR(name, double, property, Number)
-#define ADD_INTEGER_ACCESSOR(name, property) ADD_ACCESSOR(name, int, property, Integer)
-#define ADD_LONG_ACCESSOR(name, property) ADD_ACCESSOR(name, long, property, Integer)
-#define ADD_STRING_ACCESSOR(name, property) func_template->InstanceTemplate()->SetAccessor(String::New(name), \
-                     getter<T, &T::property, String>, \
-                     setter<T, &T::property>, \
-                     Handle<Value>(), \
-                     PROHIBITS_OVERWRITING, \
-                     None)
-
-#define ADD_FUNCTION(name, function)  func_template->InstanceTemplate()->Set(String::New(name), FunctionTemplate::New(function));
-
-template<typename T>
-class V8Object
-{
- private:
-  void addFunction(const char* name, InvocationCallback function);
-
- protected:
-  T* obj;
-  Handle<ObjectTemplate> obj_template;
-  Handle<String> classname;
-  Handle<Object> parent;
-  Handle<Object> value; /* v8 value */
-  Handle<FunctionTemplate> func_template;
-
- public:
-  V8Object(T* obj, Handle<Object> parent = Handle<Object>());
-
-  Handle<Object> newInstance();
-
-  Handle<Function> getConstructor();
-  static void setInternalField(Handle<Object> obj, T *p);
-  static char *getStringValue(Local<Value> value, const char *fallback="");
-};
 
 #endif
 

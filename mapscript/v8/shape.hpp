@@ -49,6 +49,8 @@ public:
   inline void addRef() { Ref(); }
   inline void delRef() { Unref(); }
 
+  inline void setLayer(layerObj *layer) { this->layer = layer; };
+  
   static void getProp(Local<String> property,
                       const PropertyCallbackInfo<Value>& info);
   static void setProp(Local<String> property,
@@ -71,6 +73,7 @@ public:
                                   map<string, int> *map);  
 private:
   static Persistent<FunctionTemplate> constructor;
+  layerObj *layer; /* for attributes names */
   ~Shape();
   shapeObj *this_;
 };

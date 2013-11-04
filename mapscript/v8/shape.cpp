@@ -54,14 +54,6 @@ void Shape::Initialize(Handle<Object> target)
   SET_ATTRIBUTE_RO(c, "classindex", getProp);
   SET_ATTRIBUTE(c, "text", getProp, setProp);
 
-  /* create the attribute map */
-  //map<string, int> *attributes_map = new map<string, int>();
-  Handle<ObjectTemplate> attributes_templ = ObjectTemplate::New();
-  attributes_templ->SetInternalFieldCount(2);
-  // attributes_templ->SetNamedPropertyHandler(attributeGetValue,
-  //                                           attributeSetValue);
-  SET(c, "attributes", attributes_templ);
-
   NODE_SET_PROTOTYPE_METHOD(c, "clone", clone);
   NODE_SET_PROTOTYPE_METHOD(c, "line", getLine);
   NODE_SET_PROTOTYPE_METHOD(c, "add", addLine);
@@ -74,6 +66,7 @@ void Shape::Initialize(Handle<Object> target)
 
 Shape::~Shape()
 {
+  msDebug("soiboire, yep destructed");
   msFreeShape(this->get());
   msFree(this->get());
 }
@@ -86,12 +79,14 @@ Handle<Function> Shape::Constructor()
 void Shape::New(const v8::FunctionCallbackInfo<Value>& args)
 {
   HandleScope scope;
+  Handle<Object> self = args.Holder();
+  Shape *shape;
 
   if (args[0]->IsExternal())
   {
     Local<External> ext = Local<External>::Cast(args[0]);
     void *ptr = ext->Value();
-    Shape *shape = static_cast<Shape*>(ptr);
+    shape = static_cast<Shape*>(ptr);
     shape->Wrap(args.Holder());
   }
   else
@@ -106,15 +101,39 @@ void Shape::New(const v8::FunctionCallbackInfo<Value>& args)
       s->type = MS_SHAPE_NULL;
     }
 
-    Shape *shape = new Shape(s);
-    shape->Wrap(args.Holder());
+    shape = new Shape(s);
+    shape->Wrap(self);
   }
+
+  /* create the attribute template */
+  Handle<ObjectTemplate> attributes_templ = ObjectTemplate::New();
+  attributes_templ->SetInternalFieldCount(2);
+  attributes_templ->SetNamedPropertyHandler(attributeGetValue,
+                                            attributeSetValue);
+  Handle<Object> attributes = attributes_templ->NewInstance();
+  map<string, int> *attributes_map = new map<string, int>();
+  attributes->SetInternalField(0, External::New(attributes_map));
+  attributes->SetInternalField(1, External::New(shape->this_->values));
+  attributes->SetHiddenValue(String::New("__parent__"), self);
+
+  if (shape->layer) {
+    for (int i=0; i<shape->layer->numitems; ++i) {
+      (*attributes_map)[string(shape->layer->items[i])] = i;
+    }
+  }
+
+  /* bug, this is never called ... */
+  Persistent<Object> attributes_po(Isolate::GetCurrent(), attributes);
+  attributes_po.MakeWeak(attributes_map, attributeMapDestroy);
+
+  self->Set(String::New("attributes"), attributes);
 }
 
 Shape::Shape(shapeObj *s):
   ObjectWrap()
 {
   this->this_ = s;
+  this->layer = NULL;
 }
 
 void Shape::getProp(Local<String> property,
@@ -169,19 +188,26 @@ void Shape::clone(const v8::FunctionCallbackInfo<v8::Value>& args)
   msInitShape(new_shape);
   msCopyShape(shape, new_shape);
 
-  /* we need this to copy shape attributes */
-  // Handle<String> key_parent = String::New("__parent__");
-  // if (!SELF->GetHiddenValue(key_parent).IsEmpty()) {
-  //   V8Shape s(new_shape, self->GetHiddenValue(key_parent)->ToObject());
-  //   Handle<Object> obj = s.newInstance();
-  //   obj->DeleteHiddenValue(key_parent);
-  //   return obj;
-  // }
-  // else {
-
   Shape *ns = new Shape(new_shape);
   Handle<Value> ext = External::New(ns);
-  args.GetReturnValue().Set(Shape::Constructor()->NewInstance(1, &ext));
+  Handle<Object> clone =  Shape::Constructor()->NewInstance(1, &ext);
+
+  /* we need this to copy shape attributes */
+  Handle<Object> self = s->handle();
+  Handle<Object> self_attributes = self->Get(String::New("attributes"))->ToObject();
+  Local<External> wrap = Local<External>::Cast(self_attributes->GetInternalField(0));
+  void *ptr = wrap->Value();
+  map<string, int> *self_attributes_map = static_cast<map<string, int> *>(ptr);
+
+  Handle<Object> clone_attributes = clone->Get(String::New("attributes"))->ToObject();
+  wrap = Local<External>::Cast(clone_attributes->GetInternalField(0));
+  ptr = wrap->Value();
+  map<string, int> *clone_attributes_map = static_cast<map<string, int> *>(ptr);
+
+  clone_attributes_map->insert(self_attributes_map->begin(),
+                               self_attributes_map->end());
+
+  args.GetReturnValue().Set(clone);
 }
 
 void Shape::getLine(const v8::FunctionCallbackInfo<v8::Value>& args)
@@ -311,68 +337,10 @@ void Shape::attributeMapDestroy(Isolate *isolate,
                                 Persistent<Object> *object,
                                 map<string, int> *map)
 {
+  msDebug("soiboire, yep MAP destructed ");
   delete map;
   object->Dispose();
   object->Clear();
 }
-
-/// kill
-// Handle<Value> msV8ShapeObjNew(const Arguments& args)
-// {
-//   Local<Object> self = args.Holder();
-//   Handle<String> key = String::New("__obj__");
-//   shapeObj *shape;
-
-//   if (!self->Has(key)) {
-//     shape = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
-
-//     msInitShape(shape);
-//     if(args.Length() >= 1) {
-//       shape->type = args[0]->Int32Value();
-//     }
-//     else {
-//       shape->type = MS_SHAPE_NULL;
-//     }
-
-//     V8Shape::setInternalField(self, shape);
-//     Persistent<Object> pobj;
-//     pobj.Reset(Isolate::GetCurrent(), self);
-//     //pobj.MakeWeak(shape, msV8ShapeObjDestroy);
-//   }
-//   else
-//   {
-//     Local<External> wrap = Local<External>::Cast(self->Get(key));
-//     void *ptr = wrap->Value();
-//     shape = static_cast<shapeObj*>(ptr);
-//   }
-
-//   /* create the attribute map */
-//   map<string, int> *attributes_map = new map<string, int>();
-//   Handle<String> key_parent = String::New("__parent__");
-//   if (self->Has(key_parent)) {
-//     layerObj *layer;
-//     Local<Object> layer_obj = self->Get(key_parent)->ToObject();
-//     Local<External> wrap = Local<External>::Cast(layer_obj->GetInternalField(0));
-//     void *ptr = wrap->Value();
-//     layer = static_cast<layerObj*>(ptr);
-//     for (int i=0; i<layer->numitems; ++i) {
-//       (*attributes_map)[string(layer->items[i])] = i;
-//     }
-//   }
-
-//   Handle<ObjectTemplate> attributes_templ = ObjectTemplate::New();
-//   attributes_templ->SetInternalFieldCount(2);
-//   attributes_templ->SetNamedPropertyHandler(msV8ShapeObjGetValue,
-//                                             msV8ShapeObjSetValue);
-//   Handle<Object> attributes = attributes_templ->NewInstance();
-//   attributes->SetInternalField(0, External::New(attributes_map));
-//   attributes->SetInternalField(1, External::New(shape->values));
-//   attributes->SetHiddenValue(key_parent, self);
-//   self->Set(String::New("attributes"), attributes);
-//   Persistent<Object> attributes_po(Isolate::GetCurrent(), attributes);
-//   //attributes_po.MakeWeak(attributes_map, msV8ObjectMapDestroy);
-
-//   return self;
-// }
 
 #endif
