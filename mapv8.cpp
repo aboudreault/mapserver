@@ -248,6 +248,7 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
   Context::Scope context_scope(context);
   Handle<Object> global = context->Global();
 
+  /* should be in a init function */
   Point::Initialize(global);
   Line::Initialize(global);
   Shape::Initialize(global);
@@ -289,34 +290,35 @@ shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
   Context::Scope context_scope(context);
   Handle<Object> global = context->Global();
 
-  /* we don't need this, since the shape object will be free by MapServer */
-  /* Persistent<Object> persistent_shape; */
-  // Handle<ObjectTemplate> layer_obj_templ = ObjectTemplate::New();
-  // layer_obj_templ->SetInternalFieldCount(1);
-  // Handle<Object> layer_obj = layer_obj_templ->NewInstance();
-  // layer_obj->SetInternalField(0, External::New(layer));   
+  /* should be in a init function */
+  Point::Initialize(global);
+  Line::Initialize(global);
+  Shape::Initialize(global);
+
   Shape* shape_ = new Shape(shape);
   Handle<Value> ext = External::New(shape_);      
   global->Set(String::New("shape"),
               Shape::Constructor()->NewInstance(1, &ext));
 
   Handle<Value> result = msV8ExecuteScript(filename);
-  if (!result.IsEmpty() && result->IsObject()) {
-    Local<External> wrap = Local<External>::Cast(result->ToObject()->GetInternalField(0));
-    void *ptr = wrap->Value();
-    shapeObj *new_shape = static_cast<shapeObj*>(ptr);
-    if (shape == new_shape) {
-      new_shape = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
-      msInitShape(new_shape);
-      msCopyShape(shape, new_shape);
-      return new_shape;
+  if (!result.IsEmpty() && result->IsObject() &&
+      result->ToObject()->GetConstructorName()->Equals(String::New("shapeObj"))) {
+    Shape* new_shape = ObjectWrap::Unwrap<Shape>(result->ToObject());
+    if (shape == new_shape->get()) {
+      shapeObj *new_shape_ = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
+      msInitShape(new_shape_);
+      msCopyShape(shape, new_shape_);
+      free(shape_);
+      return new_shape_;
     }
     else
     {
-      return new_shape;
+      free(shape_);
+      return new_shape->get();
     }
   }
-  
+
+  free(shape_);
   return NULL;
 }
                              
