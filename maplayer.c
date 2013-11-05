@@ -931,6 +931,8 @@ int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* 
   }
 
   free(stylestring);
+  msV8FreeContext(map);
+  map->v8context = NULL;
   return MS_SUCCESS;
 }
 
