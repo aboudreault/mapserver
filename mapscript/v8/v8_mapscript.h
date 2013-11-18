@@ -32,12 +32,15 @@
 #include "mapserver-config.h"
 #ifdef USE_V8_MAPSCRIPT
 
+/* This need should be removed in future v8 version */
 #define V8_ALLOW_ACCESS_TO_RAW_HANDLE_CONSTRUCTOR 1
+#define V8_USE_UNSAFE_HANDLES 1
 
 #include "mapserver.h"
 #include <v8.h>
 #include <string>
 #include <stack>
+#include <map>
 #include "v8_object_wrap.hpp"
 #include "point.hpp"
 #include "line.hpp"
@@ -55,6 +58,7 @@ public:
     : isolate(isolate) {}
   Isolate *isolate;
   stack<string> paths; /* for relative paths and the require function */
+  map<string, Persistent<Script> > scripts;
   Persistent<Context> context;
 };
 

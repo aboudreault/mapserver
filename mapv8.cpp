@@ -70,16 +70,8 @@ void msV8ReportException(TryCatch* try_catch, const char *msg = "")
 }
 
 /* This function load a javascript file in memory. */
-static Handle<Value> msV8ReadFile(V8Context *v8context, const char *name)
+static Handle<Value> msV8ReadFile(V8Context *v8context, const char *path)
 {
-  char path[MS_MAXPATHLEN];
-
-  /* construct the path */
-  msBuildPath(path, v8context->paths.top().c_str(), name);
-  char *filepath = msGetPath(path);
-  v8context->paths.push(filepath);
-  free(filepath);
-
   FILE* file = fopen(path, "rb");
   if (file == NULL) {
     char err[MS_MAXPATHLEN+21];
@@ -144,17 +136,37 @@ static Handle<Value> msV8RunScript(Handle<Script> script)
 /* Execute a javascript file */
 static Handle<Value> msV8ExecuteScript(const char *path, int throw_exception = MS_FALSE)
 {
+  char fullpath[MS_MAXPATHLEN];
+  map<string, Persistent<Script> >::iterator it;
   Isolate *isolate = Isolate::GetCurrent();
   V8Context *v8context = (V8Context*)isolate->GetData();
 
-  Handle<Value> source = msV8ReadFile(v8context, path);
-  Handle<String> script_name = String::New(msStripPath((char*)path));
-  Handle<Script> script = msV8CompileScript(source->ToString(), script_name);
-  if (script.IsEmpty()) {
-    v8context->paths.pop();
-    if (throw_exception) {
-      return ThrowException(String::New("Error compiling script"));
+  HandleScope handle_scope(isolate);
+
+  /* construct the path */
+  msBuildPath(fullpath, v8context->paths.top().c_str(), path);
+  char *filepath = msGetPath((char*)fullpath);
+  v8context->paths.push(filepath);
+  free(filepath);
+
+  Handle<Script> script;
+  it = v8context->scripts.find(fullpath);
+  if (it == v8context->scripts.end()) {
+    Handle<Value> source = msV8ReadFile(v8context, fullpath);
+    Handle<String> script_name = String::New(msStripPath((char*)path));
+    script = msV8CompileScript(source->ToString(), script_name);
+    if (script.IsEmpty()) {
+      v8context->paths.pop();
+      if (throw_exception) {
+        return ThrowException(String::New("Error compiling script"));
+      }
     }
+    /* cache the compiled script */
+    Persistent<Script> pscript;
+    pscript.Reset(isolate, script);
+    v8context->scripts[fullpath] = pscript;
+  } else {
+    script = v8context->scripts[fullpath];
   }
 
   Handle<Value> result = msV8RunScript(script);
@@ -256,8 +268,8 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
   /* we don't need this, since the shape object will be free by MapServer */
   /* Persistent<Object> persistent_shape; */
   Shape *shape_ = new Shape(shape);
-  shape_->setLayer(layer); // hack, should change in a near future. 
-  Handle<Value> ext = External::New(shape_);      
+  shape_->setLayer(layer); // hack, should change in a near future.
+  Handle<Value> ext = External::New(shape_);
   global->Set(String::New("shape"),
               Shape::Constructor()->NewInstance(1, &ext));
   shape_->addRef(); /* this object should not be freed by the v8 GC */
@@ -278,7 +290,7 @@ shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
 {
   Isolate *isolate = Isolate::GetCurrent();
   V8Context *v8context = (V8Context*)isolate->GetData();
-  
+
   if (*filename == '\0') {
     msSetError(MS_V8ERR, "Invalid javascript filename: \"%s\".", "msGeomTransformShape()", filename);
     return NULL;
@@ -296,7 +308,7 @@ shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
   Shape::Initialize(global);
 
   Shape* shape_ = new Shape(shape);
-  Handle<Value> ext = External::New(shape_);      
+  Handle<Value> ext = External::New(shape_);
   global->Set(String::New("shape"),
               Shape::Constructor()->NewInstance(1, &ext));
 
@@ -321,5 +333,5 @@ shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
   free(shape_);
   return NULL;
 }
-                             
+
 #endif /* USE_V8_MAPSCRIPT */
