@@ -38,9 +38,11 @@ class Line: public ObjectWrap
 public:
   static void Initialize(Handle<Object> target);
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void Dispose();
   static Handle<Function> Constructor();
 
   Line(lineObj *l, ObjectWrap *p = NULL);
+  ~Line();
   inline lineObj* get() { return this_; }
 
   static void getProp(Local<String> property,
@@ -55,7 +57,6 @@ public:
   static void addPoint(const v8::FunctionCallbackInfo<Value>& args);
 private:
   static Persistent<FunctionTemplate> constructor;
-  ~Line();
   lineObj *this_;
   ObjectWrap *parent_;
 };

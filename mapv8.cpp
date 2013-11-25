@@ -216,29 +216,50 @@ static Handle<Value> msV8Print(const Arguments& args)
 /* Create and return a v8 context. Thread safe. */
 void msV8CreateContext(mapObj *map)
 {
-  Isolate *isolate = Isolate::GetCurrent();
-  V8Context *v8context = new V8Context(isolate);
 
+  Isolate *isolate = Isolate::GetCurrent();
+  Isolate::Scope isolate_scope(isolate);
   HandleScope handle_scope(isolate);
 
-  Handle<ObjectTemplate> global = ObjectTemplate::New();
-  global->Set(String::New("require"), FunctionTemplate::New(msV8Require));
-  global->Set(String::New("print"), FunctionTemplate::New(msV8Print));
-  global->Set(String::New("alert"), FunctionTemplate::New(msV8Print));
+  V8Context *v8context = new V8Context(isolate);
 
-  Handle<Context> context_ = Context::New(isolate, NULL, global);
-  v8context->context.Reset(isolate, context_);
+  Handle<ObjectTemplate> global_templ = ObjectTemplate::New();
+  global_templ->Set(String::New("require"), FunctionTemplate::New(msV8Require));
+  global_templ->Set(String::New("print"), FunctionTemplate::New(msV8Print));
+  global_templ->Set(String::New("alert"), FunctionTemplate::New(msV8Print));
+
+  Handle<Context> context_ = Context::New(v8context->isolate, NULL, global_templ);
+  v8context->context.Reset(v8context->isolate, context_);
+
+  /* we have to enter the context before getting global instance */
+  Context::Scope context_scope(context_);
+  Handle<Object> global = context_->Global();
+  Shape::Initialize(global);
+  Point::Initialize(global);
+  Line::Initialize(global);
 
   v8context->paths.push(map->mappath);
-  isolate->SetData(v8context);
+  v8context->isolate->SetData(v8context);
 
   map->v8context = (void*)v8context;
+}
+
+static void msV8FreeContextScripts(V8Context *v8context)
+{
+  map<string, Persistent<Script> >::iterator it;
+  for(it=v8context->scripts.begin(); it!=v8context->scripts.end(); ++it)
+  {
+    ((*it).second).Dispose();
+  }
 }
 
 void msV8FreeContext(mapObj *map)
 {
   V8Context* v8context = V8CONTEXT(map);
-
+  Shape::Dispose();
+  Point::Dispose();
+  Line::Dispose();
+  msV8FreeContextScripts(v8context);
   v8context->context.Dispose();
   delete v8context;
 }
@@ -248,41 +269,35 @@ void msV8FreeContext(mapObj *map)
 char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, shapeObj *shape)
 {
   V8Context* v8context = V8CONTEXT(map);
-
+  char *ret = NULL;
+    
   if (!v8context) {
     msSetError(MS_V8ERR, "V8 Persistent Context is not created.", "msV8ReportException()");
     return NULL;
   }
 
+  Isolate::Scope isolate_scope(v8context->isolate);
   HandleScope handle_scope(v8context->isolate);
+
   /* execution context */
   Local<Context> context = Local<Context>::New(v8context->isolate, v8context->context);
   Context::Scope context_scope(context);
   Handle<Object> global = context->Global();
 
-  /* should be in a init function */
-  Point::Initialize(global);
-  Line::Initialize(global);
-  Shape::Initialize(global);
-
-  /* we don't need this, since the shape object will be free by MapServer */
-  /* Persistent<Object> persistent_shape; */
   Shape *shape_ = new Shape(shape);
-  shape_->setLayer(layer); // hack, should change in a near future.
+  shape_->setLayer(layer); // hack to set the attribute names, should change in future.
+  shape_->disableMemoryHandler(); /* the internal object should not be freed by the v8 GC */
   Handle<Value> ext = External::New(shape_);
   global->Set(String::New("shape"),
               Shape::Constructor()->NewInstance(1, &ext));
-  shape_->addRef(); /* this object should not be freed by the v8 GC */
-
+  
   Handle<Value> result = msV8ExecuteScript(filename);
   if (!result.IsEmpty() && !result->IsUndefined()) {
     String::AsciiValue ascii(result);
-    free(shape_);
-    return msStrdup(*ascii);
+    ret = msStrdup(*ascii);
   }
 
-  free(shape_);
-  return NULL;
+  return ret;
 }
 
 /* for geomtransform, we don't have the mapObj */
@@ -302,11 +317,6 @@ shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
   Context::Scope context_scope(context);
   Handle<Object> global = context->Global();
 
-  /* should be in a init function */
-  Point::Initialize(global);
-  Line::Initialize(global);
-  Shape::Initialize(global);
-
   Shape* shape_ = new Shape(shape);
   Handle<Value> ext = External::New(shape_);
   global->Set(String::New("shape"),
@@ -320,17 +330,14 @@ shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
       shapeObj *new_shape_ = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
       msInitShape(new_shape_);
       msCopyShape(shape, new_shape_);
-      free(shape_);
       return new_shape_;
     }
     else
     {
-      free(shape_);
       return new_shape->get();
     }
   }
 
-  free(shape_);
   return NULL;
 }
 

@@ -42,13 +42,14 @@ class Shape: public ObjectWrap
 public:
   static void Initialize(Handle<Object> target);
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void Dispose();
   static Handle<Function> Constructor();
 
   Shape(shapeObj *p);
+  ~Shape();  
   inline shapeObj* get() { return this_; }
-  inline void addRef() { Ref(); }
-  inline void delRef() { Unref(); }
-
+  inline void disableMemoryHandler() { this->freeInternal = false; }
+  
   inline void setLayer(layerObj *layer) { this->layer = layer; };
   
   static void getProp(Local<String> property,
@@ -63,6 +64,9 @@ public:
   static void setGeometry(const v8::FunctionCallbackInfo<v8::Value>& args);
 
   /* This could be generic in the future.. */
+  static void attributeWeakCallback(v8::Isolate* isolate,
+                                    v8::Persistent<v8::Object>* pobj,
+                                    map<string, int> *map);
   static void attributeGetValue(Local<String> name,
                                 const PropertyCallbackInfo<Value> &info);
   static void attributeSetValue(Local<String> name,
@@ -73,8 +77,8 @@ public:
                                   map<string, int> *map);  
 private:
   static Persistent<FunctionTemplate> constructor;
+  bool freeInternal;
   layerObj *layer; /* for attributes names */
-  ~Shape();
   shapeObj *this_;
 };
 

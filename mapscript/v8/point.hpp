@@ -38,9 +38,11 @@ class Point: public ObjectWrap
 public:
   static void Initialize(Handle<Object> target);
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
+  static void Dispose();
   static Handle<Function> Constructor();
 
   Point(pointObj *p, ObjectWrap *pa = NULL);
+  ~Point();
   inline pointObj* get() { return this_; }
 
   static void getProp(Local<String> property,
@@ -53,7 +55,6 @@ public:
   static void setXYZ(const v8::FunctionCallbackInfo<v8::Value>& args);
 private:
   static Persistent<FunctionTemplate> constructor;
-  ~Point();
   pointObj *this_;
   ObjectWrap *parent_;
 };

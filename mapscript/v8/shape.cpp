@@ -64,10 +64,19 @@ void Shape::Initialize(Handle<Object> target)
   constructor.Reset(Isolate::GetCurrent(), c);
 }
 
+void Shape::Dispose()
+{
+  Shape::constructor.Dispose();
+  Shape::constructor.Clear();
+}
+
 Shape::~Shape()
 {
-  msFreeShape(this->get());
-  msFree(this->get());
+  /* this is set to false if the shapeObj is owned by mapserver and not v8 */
+  if (freeInternal) {
+    msFreeShape(this->get());
+    msFree(this->get());
+  }
 }
 
 Handle<Function> Shape::Constructor()
@@ -104,7 +113,7 @@ void Shape::New(const v8::FunctionCallbackInfo<Value>& args)
     shape->Wrap(self);
   }
 
-  /* create the attribute template */
+  /* create the attribute template. should use ObjectWrap in future */
   Handle<ObjectTemplate> attributes_templ = ObjectTemplate::New();
   attributes_templ->SetInternalFieldCount(2);
   attributes_templ->SetNamedPropertyHandler(attributeGetValue,
@@ -112,7 +121,7 @@ void Shape::New(const v8::FunctionCallbackInfo<Value>& args)
   Handle<Object> attributes = attributes_templ->NewInstance();
   map<string, int> *attributes_map = new map<string, int>();
   attributes->SetInternalField(0, External::New(attributes_map));
-  attributes->SetInternalField(1, External::New(shape->this_->values));
+  attributes->SetInternalField(1, External::New(shape->get()->values));  
   attributes->SetHiddenValue(String::New("__parent__"), self);
 
   if (shape->layer) {
@@ -121,9 +130,10 @@ void Shape::New(const v8::FunctionCallbackInfo<Value>& args)
     }
   }
 
-  /* bug, this is never called ... */
-  Persistent<Object> attributes_po(Isolate::GetCurrent(), attributes);
-  attributes_po.MakeWeak(attributes_map, attributeMapDestroy);
+  Persistent<Object> pattributes;
+  pattributes.Reset(Isolate::GetCurrent(), attributes);
+  pattributes.MakeWeak(attributes_map, attributeWeakCallback);
+  pattributes.MarkIndependent();
 
   self->Set(String::New("attributes"), attributes);
 }
@@ -133,6 +143,7 @@ Shape::Shape(shapeObj *s):
 {
   this->this_ = s;
   this->layer = NULL;
+  this->freeInternal = true;
 }
 
 void Shape::getProp(Local<String> property,
@@ -174,7 +185,6 @@ void Shape::setProp(Local<String> property,
         msFree(s->get()->text);
       s->get()->text = getStringValue(value);
     }
-
 }
 
 void Shape::clone(const v8::FunctionCallbackInfo<v8::Value>& args)
@@ -283,6 +293,15 @@ void Shape::setGeometry(const v8::FunctionCallbackInfo<v8::Value>& args)
   return;
 }
 
+void Shape::attributeWeakCallback(v8::Isolate* isolate,
+                           v8::Persistent<v8::Object>* pobj,
+                           map<string, int> *map) {
+    v8::HandleScope scope(isolate);
+    pobj->Dispose();
+    pobj->Clear();
+    delete map;
+}
+
 void Shape::attributeGetValue(Local<String> name,
                               const PropertyCallbackInfo<Value> &info)
 {
@@ -330,15 +349,6 @@ void Shape::attributeSetValue(Local<String> name,
     msFree(values[index]);
     values[index] = msStrdup(*utf8_value);
   }
-}
-
-void Shape::attributeMapDestroy(Isolate *isolate,
-                                Persistent<Object> *object,
-                                map<string, int> *map)
-{
-  delete map;
-  object->Dispose();
-  object->Clear();
 }
 
 #endif

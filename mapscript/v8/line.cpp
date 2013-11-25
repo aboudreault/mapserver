@@ -55,6 +55,12 @@ void Line::Initialize(Handle<Object> target)
   constructor.Reset(Isolate::GetCurrent(), c);
 }
 
+void Line::Dispose()
+{
+  Line::constructor.Dispose();
+  Line::constructor.Clear();
+}
+
 Line::~Line()
 {
   msFree(this->this_->point);

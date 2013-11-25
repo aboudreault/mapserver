@@ -50,6 +50,7 @@ using namespace v8;
 
 using std::string;
 using std::stack;
+using std::map;
 
 class V8Context
 {

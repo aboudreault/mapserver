@@ -58,6 +58,12 @@ void Point::Initialize(Handle<Object> target)
   constructor.Reset(Isolate::GetCurrent(), c);
 }
 
+void Point::Dispose()
+{
+  Point::constructor.Dispose();
+  Point::constructor.Clear();
+}
+
 Point::~Point()
 {
   msFree(this->get());
