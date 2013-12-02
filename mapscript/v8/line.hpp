@@ -44,6 +44,7 @@ public:
   Line(lineObj *l, ObjectWrap *p = NULL);
   ~Line();
   inline lineObj* get() { return this_; }
+  inline void disableMemoryHandler() { this->freeInternal = false; }
 
   static void getProp(Local<String> property,
                       const PropertyCallbackInfo<Value>& info);
@@ -59,6 +60,7 @@ private:
   static Persistent<FunctionTemplate> constructor;
   lineObj *this_;
   ObjectWrap *parent_;
+  bool freeInternal;
 };
 
 #endif

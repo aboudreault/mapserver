@@ -66,7 +66,9 @@ void Point::Dispose()
 
 Point::~Point()
 {
-  msFree(this->get());
+  if (this->freeInternal) {
+    msFree(this->get());
+  }
 }
 
 Handle<Function> Point::Constructor()
@@ -87,7 +89,7 @@ void Point::New(const v8::FunctionCallbackInfo<Value>& args)
     point->Wrap(self);
     if (point->parent_) {
       self->SetHiddenValue(String::New("__parent__"), point->parent_->handle());
-      point->Ref();
+      point->disableMemoryHandler();
     }
   }
   else
@@ -111,6 +113,7 @@ void Point::New(const v8::FunctionCallbackInfo<Value>& args)
 {
     this->this_ = p;
     this->parent_ = pa;
+    this->freeInternal = true;
 }
 
 void Point::getProp(Local<String> property,

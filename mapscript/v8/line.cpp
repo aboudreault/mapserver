@@ -63,8 +63,10 @@ void Line::Dispose()
 
 Line::~Line()
 {
-  msFree(this->this_->point);
-  msFree(this->this_);
+  if (this->freeInternal) {
+    msFree(this->this_->point);
+    msFree(this->this_);
+  }
 }
 
 Handle<Function> Line::Constructor()
@@ -85,7 +87,7 @@ void Line::New(const v8::FunctionCallbackInfo<Value>& args)
     line->Wrap(self);
     if (line->parent_) {
       self->SetHiddenValue(String::New("__parent__"), line->parent_->handle());
-      line->Ref();
+      line->disableMemoryHandler();
     }
   }
   else
@@ -106,6 +108,7 @@ Line::Line(lineObj *l, ObjectWrap *p):
 {
   this->this_ = l;
   this->parent_ = p;
+  this->freeInternal = true;
 }
 
 void Line::getProp(Local<String> property,

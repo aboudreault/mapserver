@@ -44,6 +44,7 @@ public:
   Point(pointObj *p, ObjectWrap *pa = NULL);
   ~Point();
   inline pointObj* get() { return this_; }
+  inline void disableMemoryHandler() { this->freeInternal = false; }
 
   static void getProp(Local<String> property,
                       const PropertyCallbackInfo<Value>& info);
@@ -57,6 +58,7 @@ private:
   static Persistent<FunctionTemplate> constructor;
   pointObj *this_;
   ObjectWrap *parent_;
+  bool freeInternal;
 };
 
 #endif
