@@ -306,10 +306,17 @@ char* msV8GetFeatureStyle(mapObj *map, const char *filename, layerObj *layer, sh
   global->Set(String::New("shape"),
               Shape::Constructor()->NewInstance(1, &ext));
   
-  Handle<Value> result = msV8ExecuteScript(filename);
+  msV8ExecuteScript(filename);
+  Handle<Value> value = global->Get(String::New("styleitem"));
+  if (value->IsUndefined()) {
+    msDebug("msV8GetFeatureStyle: Function 'styleitem' is missing.\n");
+    return ret;
+  }
+  Handle<Function> func = Handle<Function>::Cast(value);
+  Handle<Value> result = func->Call(global, 0, 0);
   if (!result.IsEmpty() && !result->IsUndefined()) {
-    String::AsciiValue ascii(result);
-    ret = msStrdup(*ascii);
+     String::AsciiValue ascii(result);
+     ret = msStrdup(*ascii);
   }
 
   return ret;
@@ -335,7 +342,14 @@ shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
   global->Set(String::New("shape"),
               Shape::Constructor()->NewInstance(1, &ext));
 
-  Handle<Value> result = msV8ExecuteScript(filename);
+  msV8ExecuteScript(filename);
+  Handle<Value> value = global->Get(String::New("geomtransform"));
+  if (value->IsUndefined()) {
+    msDebug("msV8TransformShape: Function 'geomtransform' is missing.\n");
+    return NULL;
+  }
+  Handle<Function> func = Handle<Function>::Cast(value);
+  Handle<Value> result = func->Call(global, 0, 0);
   if (!result.IsEmpty() && result->IsObject()) {
     Handle<Object> obj = result->ToObject();
     if (obj->GetConstructorName()->Equals(String::New("shapeObj"))) {
