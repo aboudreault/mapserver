@@ -88,6 +88,10 @@ static Handle<Value> msV8ReadFile(V8Context *v8context, const char *path)
   chars[size] = '\0';
   for (int i = 0; i < size;) {
     int read = static_cast<int>(fread(&chars[i], 1, size - i, file));
+    if (read == 0) {
+      msDebug("msV8ReadFile: error while reading file '%s'\n", path);
+      return Undefined();
+    }
     i += read;
   }
 
@@ -140,8 +144,6 @@ static Handle<Value> msV8ExecuteScript(const char *path, int throw_exception = M
   map<string, Persistent<Script> >::iterator it;
   Isolate *isolate = Isolate::GetCurrent();
   V8Context *v8context = (V8Context*)isolate->GetData();
-
-  HandleScope handle_scope(isolate);
 
   /* construct the path */
   msBuildPath(fullpath, v8context->paths.top().c_str(), path);
@@ -306,35 +308,34 @@ shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
   Isolate *isolate = Isolate::GetCurrent();
   V8Context *v8context = (V8Context*)isolate->GetData();
 
-  if (*filename == '\0') {
-    msSetError(MS_V8ERR, "Invalid javascript filename: \"%s\".", "msGeomTransformShape()", filename);
-    return NULL;
-  }
-
   HandleScope handle_scope(v8context->isolate);
+
   /* execution context */
   Local<Context> context = Local<Context>::New(v8context->isolate, v8context->context);
   Context::Scope context_scope(context);
   Handle<Object> global = context->Global();
 
   Shape* shape_ = new Shape(shape);
+  shape_->disableMemoryHandler();
   Handle<Value> ext = External::New(shape_);
   global->Set(String::New("shape"),
               Shape::Constructor()->NewInstance(1, &ext));
 
   Handle<Value> result = msV8ExecuteScript(filename);
-  if (!result.IsEmpty() && result->IsObject() &&
-      result->ToObject()->GetConstructorName()->Equals(String::New("shapeObj"))) {
-    Shape* new_shape = ObjectWrap::Unwrap<Shape>(result->ToObject());
-    if (shape == new_shape->get()) {
-      shapeObj *new_shape_ = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
-      msInitShape(new_shape_);
-      msCopyShape(shape, new_shape_);
-      return new_shape_;
-    }
-    else
-    {
-      return new_shape->get();
+  if (!result.IsEmpty() && result->IsObject()) {
+    Handle<Object> obj = result->ToObject();
+    if (obj->GetConstructorName()->Equals(String::New("shapeObj"))) {
+      Shape* new_shape = ObjectWrap::Unwrap<Shape>(result->ToObject());
+      if (shape == new_shape->get()) {
+        shapeObj *new_shape_ = (shapeObj *)msSmallMalloc(sizeof(shapeObj));
+        msInitShape(new_shape_);
+        msCopyShape(shape, new_shape_);
+        return new_shape_;
+      }
+      else {
+        new_shape->disableMemoryHandler();
+        return new_shape->get();
+      }
     }
   }
 
