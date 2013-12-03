@@ -61,6 +61,7 @@ public:
   stack<string> paths; /* for relative paths and the require function */
   map<string, Persistent<Script> > scripts;
   Persistent<Context> context;
+  layerObj *layer; /* current layer, used in geomtransform */
 };
 
 #define V8CONTEXT(map) ((V8Context*) (map)->v8context)

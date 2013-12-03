@@ -242,8 +242,21 @@ void msV8CreateContext(mapObj *map)
 
   v8context->paths.push(map->mappath);
   v8context->isolate->SetData(v8context);
+  v8context->layer = NULL;
 
   map->v8context = (void*)v8context;
+}
+
+void msV8ContextSetLayer(mapObj *map, layerObj *layer)
+{
+  V8Context* v8context = V8CONTEXT(map);
+
+  if (!v8context) {
+    msSetError(MS_V8ERR, "V8 Persistent Context is not created.", "msV8ContextSetLayer()");
+    return;
+  }
+
+  v8context->layer = layer;
 }
 
 static void msV8FreeContextScripts(V8Context *v8context)
@@ -316,6 +329,7 @@ shapeObj *msV8TransformShape(shapeObj *shape, const char* filename)
   Handle<Object> global = context->Global();
 
   Shape* shape_ = new Shape(shape);
+  shape_->setLayer(v8context->layer);
   shape_->disableMemoryHandler();
   Handle<Value> ext = External::New(shape_);
   global->Set(String::New("shape"),

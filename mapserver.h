@@ -2794,6 +2794,7 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
   /* ==================================================================== */
 #ifdef USE_V8_MAPSCRIPT
   MS_DLL_EXPORT void msV8CreateContext(mapObj *map);
+  MS_DLL_EXPORT void msV8ContextSetLayer(mapObj *map, layerObj *layer);
   MS_DLL_EXPORT void msV8FreeContext(mapObj *map);
   MS_DLL_EXPORT char* msV8GetFeatureStyle(mapObj *map, const char *filename,
                                           layerObj *layer, shapeObj *shape);

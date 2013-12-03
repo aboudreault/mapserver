@@ -232,6 +232,8 @@ int msGeomTransformShape(mapObj *map, layerObj *layer, shapeObj *shape)
       return MS_FAILURE;
     }
   }
+
+  msV8ContextSetLayer(map, layer);
 #endif
  
   switch(e->type) {
