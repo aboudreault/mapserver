@@ -32,6 +32,9 @@
 #include "mapserver.h"
 #include "v8_mapscript.h"
 
+/* This file could be refactored in the future to encapsulate the global
+   functions and internal use functions in a class. */
+
 /* Handler for Javascript Exceptions. Not exposed to JavaScript, used internally.
    Most of the code from v8 shell example.
 */
